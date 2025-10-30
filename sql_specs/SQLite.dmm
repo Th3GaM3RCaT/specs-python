@@ -1,0 +1,1556 @@
+{
+	"tables": {
+		"9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"name": "Dispositivos",
+			"desc": "",
+			"cols": [
+				{
+					"id": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"name": "serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": true,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "98ed4b9d-daf1-4eb7-bb3a-e15e38fff9f5",
+					"name": "DTI",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "6a92b5ec-8d2d-4e75-b0a1-867d47509586",
+					"name": "user",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "d1eca7f9-b2b2-4892-a512-aefd9cc2a995",
+					"name": "MAC",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "2e8caa48-ef9c-42f0-b454-6382c4b2371e",
+					"name": "model",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "12af6e3b-b686-4938-9d15-b4a1c5e33bcb",
+					"name": "processor",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "973d1fd9-ac33-4f9f-bcf3-23f13232bc68",
+					"name": "GPU",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "364532b9-8ca8-4422-9f37-fb91e0bcf6ff",
+					"name": "RAM",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "a04988b7-e742-4d75-810f-d48817d1f535",
+					"name": "disk",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "1e928491-241a-4aea-a6b2-26f13da24426",
+					"name": "license_status",
+					"datatype": "BOOLEAN",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "af864e74-3b3f-40f9-81e6-6a1892594dfa",
+					"name": "ip",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "8a28007a-9707-42d3-ae1b-d1c0672de410",
+					"name": "activo",
+					"datatype": "BOOLEAN",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				}
+			],
+			"relations": [
+				"4b5a41ec-4f98-4007-8823-f265fd32ee1c",
+				"571caeaa-2dd3-40f6-9831-d130707e22fb",
+				"afb7f7ca-dc13-41b5-baea-add32e6f04de",
+				"ec3d2b26-cd9b-4c01-9002-a234322a1bc9",
+				"ec13eae0-d25f-4d91-8446-b8fa2b36d51b",
+				"7e9ff4d7-bd7a-4ab2-bc51-7f2e859c3cee"
+			],
+			"keys": [
+				{
+					"id": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": [
+						{
+							"id": "0450a03c-9c34-4d4f-b7fc-f6514586a077",
+							"colid": "391e6ec1-b87b-46c6-a132-c176e53c400f"
+						}
+					]
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		},
+		"422b6378-4f97-4104-b7f4-dfbd294a2d2f": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "422b6378-4f97-4104-b7f4-dfbd294a2d2f",
+			"name": "activo",
+			"desc": "",
+			"cols": [
+				{
+					"id": "dcf34ad8-f695-4fe8-a57e-ba9e047c4db2",
+					"name": "Dispositivos_serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": true,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "032e8431-8b1d-40f4-8a24-103e10a51fdb",
+					"name": "powerOn",
+					"datatype": "BOOLEAN",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "177740d5-a507-48bc-88bc-e0330c51dd7a",
+					"name": "date",
+					"datatype": "DATETIME",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				}
+			],
+			"relations": [
+				"4b5a41ec-4f98-4007-8823-f265fd32ee1c"
+			],
+			"keys": [
+				{
+					"id": "f767b703-ed9d-4668-aae3-5452fa36863c",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": []
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		},
+		"dc9710aa-5a38-45d7-8292-2807a34e6634": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "dc9710aa-5a38-45d7-8292-2807a34e6634",
+			"name": "almacenamiento",
+			"desc": "",
+			"cols": [
+				{
+					"id": "4b796eff-ed83-4ef0-b92b-e6ea34866b6c",
+					"name": "Dispositivos_serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": true,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "d95e0d94-82a0-4fa1-81e8-8b3a9a628707",
+					"name": "nombre",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "32b7a85e-5321-45ca-ad4b-0688b178a3c6",
+					"name": "capacidad",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "445d8b88-9db5-4040-a65d-bdeaad60a278",
+					"name": "tipo",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "ed5b8c6e-5496-4a85-b70e-d7d5f44d3154",
+					"name": "actual",
+					"datatype": "BOOLEAN",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "48ed6aa5-95be-43c5-95f1-f1019493758a",
+					"name": "id",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": true,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": true
+					}
+				},
+				{
+					"id": "3c58086f-4e74-48b3-aca3-5783a63bda45",
+					"name": "fecha_instalacion",
+					"datatype": "DATETIME",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				}
+			],
+			"relations": [
+				"571caeaa-2dd3-40f6-9831-d130707e22fb"
+			],
+			"keys": [
+				{
+					"id": "b4de93d6-0ac2-4422-abac-0166da54e130",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": [
+						{
+							"id": "d7e79ea5-18e0-4098-91d1-85fc998b474b",
+							"colid": "48ed6aa5-95be-43c5-95f1-f1019493758a"
+						}
+					]
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		},
+		"b343ba73-7f64-4e82-857c-03e3eedbd1fb": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "b343ba73-7f64-4e82-857c-03e3eedbd1fb",
+			"name": "aplicaciones",
+			"desc": "",
+			"cols": [
+				{
+					"id": "f8619197-6932-40d4-9a05-ec5014a78c79",
+					"name": "Dispositivos_serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": true,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "b7e0290b-90fd-4812-9c9d-e1d0a434aacf",
+					"name": "name",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "4cd143eb-d806-410e-a332-a6afb9b71b0d",
+					"name": "version",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "dafdcdc2-d9d3-4986-84cd-3f0fea5a88fc",
+					"name": "publisher",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "a7dae2cb-2e24-458b-b604-1e32626223d2",
+					"name": "id",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": true,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": true
+					}
+				}
+			],
+			"relations": [
+				"afb7f7ca-dc13-41b5-baea-add32e6f04de"
+			],
+			"keys": [
+				{
+					"id": "baf7eb28-88d6-442c-9d4d-3ccaf5cba12a",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": [
+						{
+							"id": "b000c2d9-540b-44ab-b05f-ba32fb7f9cf0",
+							"colid": "a7dae2cb-2e24-458b-b604-1e32626223d2"
+						}
+					]
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		},
+		"2c8efbf8-9268-4271-816a-82d06577037c": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "2c8efbf8-9268-4271-816a-82d06577037c",
+			"name": "informacion_diagnostico",
+			"desc": "",
+			"cols": [
+				{
+					"id": "c9f142e8-49ad-4a1a-b6e2-ccddbac43e4e",
+					"name": "Dispositivos_serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": true,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "ac9e1c7f-5d10-405e-b796-1994887d4c13",
+					"name": "json_diagnostico",
+					"datatype": "TEXT",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "3b14088b-8c2e-41c2-8e6f-e2257c41a71d",
+					"name": "reporteDirectX",
+					"datatype": "TEXT",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "38cd3b17-cd99-4cb9-8103-05d6385590fe",
+					"name": "fecha",
+					"datatype": "DATETIME",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "0c3b1a43-3577-459c-928f-dd8f15bc5400",
+					"name": "id",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": true,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": true
+					}
+				}
+			],
+			"relations": [
+				"ec3d2b26-cd9b-4c01-9002-a234322a1bc9"
+			],
+			"keys": [
+				{
+					"id": "7b329435-fbfb-4cba-b31b-cf99bba37ca6",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": [
+						{
+							"id": "9a51b748-f74e-4ed6-b9af-294f1335abd5",
+							"colid": "0c3b1a43-3577-459c-928f-dd8f15bc5400"
+						}
+					]
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		},
+		"f337c077-eed0-4f37-8aaa-9736f683b24b": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "f337c077-eed0-4f37-8aaa-9736f683b24b",
+			"name": "memoria",
+			"desc": "",
+			"cols": [
+				{
+					"id": "048bc928-1cb6-46db-8fda-a681b2a822ca",
+					"name": "Dispositivos_serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": true,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "a016cb94-a9df-4d8d-9e5c-c3b20e8aea22",
+					"name": "modulo",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "f132310a-b093-482e-9f35-e17009649e61",
+					"name": "fabricante",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "ebc9432e-a670-4d89-9544-0a69de3b4dac",
+					"name": "capacidad",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "92ec1376-544f-4dec-96c5-0a146f1925e6",
+					"name": "velocidad",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "22f0b098-1ca4-4ffd-b239-9f9f8715e9c0",
+					"name": "numero_serie",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "a0f2a5a7-81f1-4eae-8929-ef857b52d377",
+					"name": "actual",
+					"datatype": "BOOLEAN",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "52bec067-6610-478b-a472-b4f1140a88b1",
+					"name": "id",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": true,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": true
+					}
+				},
+				{
+					"id": "4c1d2949-74db-46b0-865e-0befefa6d699",
+					"name": "fecha_instalacion",
+					"datatype": "DATETIME",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				}
+			],
+			"relations": [
+				"ec13eae0-d25f-4d91-8446-b8fa2b36d51b"
+			],
+			"keys": [
+				{
+					"id": "09a82b15-adfb-4d7e-a916-5e264914df69",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": [
+						{
+							"id": "d41b920f-1c70-453b-9c03-b0a4e92376dd",
+							"colid": "52bec067-6610-478b-a472-b4f1140a88b1"
+						}
+					]
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		},
+		"f46f6634-7674-475c-b944-2f038676c7f8": {
+			"lines": [],
+			"embeddable": false,
+			"generate": true,
+			"generateCustomCode": true,
+			"id": "f46f6634-7674-475c-b944-2f038676c7f8",
+			"name": "registro_cambios",
+			"desc": "",
+			"cols": [
+				{
+					"id": "30412c4b-c316-4df9-b0a3-b275d19277af",
+					"name": "Dispositivos_serial",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": true,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "747fd33e-e15f-43d0-85dc-8575dd04b703",
+					"name": "user",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "d5434293-5cfe-4b2b-8eb6-3c03278153f1",
+					"name": "processor",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "91a84345-8e28-4981-85f0-841096ae48cf",
+					"name": "GPU",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "c30eedf4-718a-4a21-8cff-0a526321b0a6",
+					"name": "RAM",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "92c85d52-c836-4904-9f6d-9faef442bba8",
+					"name": "disk",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "4613c4e2-d721-4485-98b2-cf71b0eceec2",
+					"name": "license_status",
+					"datatype": "BOOLEAN",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "986860c8-df15-4a66-a8c4-29e3cc3ea46e",
+					"name": "ip",
+					"datatype": "VARCHAR",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "6a1299ba-b7e7-425d-8f61-d12943fd0fb4",
+					"name": "date",
+					"datatype": "DATETIME",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": false
+					}
+				},
+				{
+					"id": "49ab72fc-c310-4e99-9d3f-d325ecfa4e41",
+					"name": "id",
+					"datatype": "INTEGER",
+					"param": "",
+					"pk": true,
+					"nn": true,
+					"comment": "",
+					"data": "",
+					"estimatedSize": "",
+					"defaultvalue": "",
+					"collation": "",
+					"fk": false,
+					"after": "",
+					"sqlite": {
+						"autoincrement": true
+					}
+				}
+			],
+			"relations": [
+				"7e9ff4d7-bd7a-4ab2-bc51-7f2e859c3cee"
+			],
+			"keys": [
+				{
+					"id": "3c91728a-0a44-4f6e-94ee-f72f1b746e8c",
+					"isPk": true,
+					"name": "Primary key",
+					"cols": [
+						{
+							"id": "5eca8cbb-ea45-49d0-80c8-bc1921bf717d",
+							"colid": "49ab72fc-c310-4e99-9d3f-d325ecfa4e41"
+						}
+					]
+				}
+			],
+			"indexes": [],
+			"estimatedSize": "",
+			"sqlite": {
+				"withoutrowid": false,
+				"strict": false
+			},
+			"visible": true,
+			"customCode": ""
+		}
+	},
+	"relations": {
+		"4b5a41ec-4f98-4007-8823-f265fd32ee1c": {
+			"id": "4b5a41ec-4f98-4007-8823-f265fd32ee1c",
+			"type": "identifying",
+			"cols": [
+				{
+					"id": "86a50c0d-181b-406c-a8e0-22ef8d6df0cf",
+					"parentcol": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"childcol": "dcf34ad8-f695-4fe8-a57e-ba9e047c4db2"
+				}
+			],
+			"child": "422b6378-4f97-4104-b7f4-dfbd294a2d2f",
+			"parent": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"c_mp": "true",
+			"c_mch": "true",
+			"c_ch": "many",
+			"c_p": "one",
+			"c_cp": "",
+			"c_cch": "",
+			"name": "Dispositivos_activo",
+			"desc": "",
+			"parent_key": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+			"ri_pd": "No action",
+			"ri_pu": "No action",
+			"generate": true,
+			"generateCustomCode": true,
+			"customCode": "",
+			"relationColor": "transparent",
+			"linegraphics": "default"
+		},
+		"571caeaa-2dd3-40f6-9831-d130707e22fb": {
+			"id": "571caeaa-2dd3-40f6-9831-d130707e22fb",
+			"type": "identifying",
+			"cols": [
+				{
+					"id": "b975572b-43c9-4cb8-90f6-c3b5ac275d9f",
+					"parentcol": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"childcol": "4b796eff-ed83-4ef0-b92b-e6ea34866b6c"
+				}
+			],
+			"child": "dc9710aa-5a38-45d7-8292-2807a34e6634",
+			"parent": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"c_mp": "true",
+			"c_mch": "true",
+			"c_ch": "many",
+			"c_p": "one",
+			"c_cp": "",
+			"c_cch": "",
+			"name": "Dispositivos_almacenamiento",
+			"desc": "",
+			"parent_key": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+			"ri_pd": "No action",
+			"ri_pu": "No action",
+			"generate": true,
+			"generateCustomCode": true,
+			"customCode": "",
+			"relationColor": "transparent",
+			"linegraphics": "default"
+		},
+		"afb7f7ca-dc13-41b5-baea-add32e6f04de": {
+			"id": "afb7f7ca-dc13-41b5-baea-add32e6f04de",
+			"type": "identifying",
+			"cols": [
+				{
+					"id": "b8d48137-1b01-4170-a749-c9acb3580d2e",
+					"parentcol": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"childcol": "f8619197-6932-40d4-9a05-ec5014a78c79"
+				}
+			],
+			"child": "b343ba73-7f64-4e82-857c-03e3eedbd1fb",
+			"parent": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"c_mp": "true",
+			"c_mch": "true",
+			"c_ch": "many",
+			"c_p": "one",
+			"c_cp": "",
+			"c_cch": "",
+			"name": "Dispositivos_aplicaciones",
+			"desc": "",
+			"parent_key": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+			"ri_pd": "No action",
+			"ri_pu": "No action",
+			"generate": true,
+			"generateCustomCode": true,
+			"customCode": "",
+			"relationColor": "transparent",
+			"linegraphics": "default"
+		},
+		"ec3d2b26-cd9b-4c01-9002-a234322a1bc9": {
+			"id": "ec3d2b26-cd9b-4c01-9002-a234322a1bc9",
+			"type": "identifying",
+			"cols": [
+				{
+					"id": "12fce286-860a-4144-81fb-f4eedd4b651a",
+					"parentcol": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"childcol": "c9f142e8-49ad-4a1a-b6e2-ccddbac43e4e"
+				}
+			],
+			"child": "2c8efbf8-9268-4271-816a-82d06577037c",
+			"parent": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"c_mp": "true",
+			"c_mch": "true",
+			"c_ch": "many",
+			"c_p": "one",
+			"c_cp": "",
+			"c_cch": "",
+			"name": "Dispositivos_informacion_diagnostico",
+			"desc": "",
+			"parent_key": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+			"ri_pd": "No action",
+			"ri_pu": "No action",
+			"generate": true,
+			"generateCustomCode": true,
+			"customCode": "",
+			"relationColor": "transparent",
+			"linegraphics": "default"
+		},
+		"ec13eae0-d25f-4d91-8446-b8fa2b36d51b": {
+			"id": "ec13eae0-d25f-4d91-8446-b8fa2b36d51b",
+			"type": "identifying",
+			"cols": [
+				{
+					"id": "27b11c96-939a-40e6-9da4-dbe5d81d0174",
+					"parentcol": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"childcol": "048bc928-1cb6-46db-8fda-a681b2a822ca"
+				}
+			],
+			"child": "f337c077-eed0-4f37-8aaa-9736f683b24b",
+			"parent": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"c_mp": "true",
+			"c_mch": "true",
+			"c_ch": "many",
+			"c_p": "one",
+			"c_cp": "",
+			"c_cch": "",
+			"name": "Dispositivos_memoria",
+			"desc": "",
+			"parent_key": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+			"ri_pd": "No action",
+			"ri_pu": "No action",
+			"generate": true,
+			"generateCustomCode": true,
+			"customCode": "",
+			"relationColor": "transparent",
+			"linegraphics": "default"
+		},
+		"7e9ff4d7-bd7a-4ab2-bc51-7f2e859c3cee": {
+			"id": "7e9ff4d7-bd7a-4ab2-bc51-7f2e859c3cee",
+			"type": "identifying",
+			"cols": [
+				{
+					"id": "d1aeb442-6a22-46c8-8e37-c254e36e9934",
+					"parentcol": "391e6ec1-b87b-46c6-a132-c176e53c400f",
+					"childcol": "30412c4b-c316-4df9-b0a3-b275d19277af"
+				}
+			],
+			"child": "f46f6634-7674-475c-b944-2f038676c7f8",
+			"parent": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+			"c_mp": "true",
+			"c_mch": "true",
+			"c_ch": "many",
+			"c_p": "one",
+			"c_cp": "",
+			"c_cch": "",
+			"name": "Dispositivos_registro_cambios",
+			"desc": "",
+			"parent_key": "7db130a1-1575-4c1f-8e36-5f2de9e3559b",
+			"ri_pd": "No action",
+			"ri_pu": "No action",
+			"generate": true,
+			"generateCustomCode": true,
+			"customCode": "",
+			"relationColor": "transparent",
+			"linegraphics": "default"
+		}
+	},
+	"notes": {},
+	"lines": {},
+	"model": {
+		"connectionId": "f792ddc3-a633-4a4c-ace0-dabaf17a2ff3",
+		"connectionVersion": "[{\"schema_version\":9}]",
+		"activeDiagram": "13ddb690-a1c8-43b7-a75a-6f82d8ed0c9c",
+		"caseConvention": "under",
+		"color": "transparent",
+		"def_coltopk": true,
+		"desc": "",
+		"id": "d105dfc9-f749-49e3-bdca-739d435d7e50",
+		"isDirty": true,
+		"name": "SQLite",
+		"parentTableInFkCols": true,
+		"path": "",
+		"replaceSpace": "_",
+		"sideSelections": true,
+		"storedin": {
+			"major": 12,
+			"minor": 2,
+			"extra": 0
+		},
+		"laststoredin": {
+			"major": 12,
+			"minor": 2,
+			"extra": 0
+		},
+		"type": "SQLITE",
+		"version": 1,
+		"lastSaved": 1761320688954,
+		"sqlSettings": {
+			"wrapLines": true,
+			"wrapOffset": 80,
+			"indent": true,
+			"indentationString": "spaces",
+			"indentationSize": 2,
+			"limitItemsOnLine": true,
+			"maxListItemsOnLine": 3,
+			"statementDelimiter": ";",
+			"routineDelimiter": ";",
+			"keywordCase": "upper",
+			"identiferCase": "original",
+			"quotationExistance": "if_needed"
+		},
+		"writeFileParam": false,
+		"authorName": "",
+		"companyDetails": "",
+		"companyUrl": "",
+		"synchronizationSettings": {
+			"preserveData": "use_temporary_tables",
+			"ignoreSystemDefaults": "yes",
+			"includeWarnings": "yes",
+			"includeCreationSql": "no"
+		},
+		"modelScriptsDir": "C:\\Users\\estudiante\\Documents\\specs-python\\otros\\sql\\statement"
+	},
+	"otherObjects": {},
+	"diagrams": {
+		"13ddb690-a1c8-43b7-a75a-6f82d8ed0c9c": {
+			"id": "13ddb690-a1c8-43b7-a75a-6f82d8ed0c9c",
+			"lineColor": "transparent",
+			"description": "",
+			"diagramItems": {
+				"9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86": {
+					"x": 185,
+					"y": 887,
+					"gHeight": 243,
+					"gWidth": 224,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				},
+				"422b6378-4f97-4104-b7f4-dfbd294a2d2f": {
+					"x": 589,
+					"y": 968,
+					"gHeight": 81,
+					"gWidth": 247,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "422b6378-4f97-4104-b7f4-dfbd294a2d2f",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				},
+				"dc9710aa-5a38-45d7-8292-2807a34e6634": {
+					"x": 602,
+					"y": 762,
+					"gHeight": 153,
+					"gWidth": 247,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "dc9710aa-5a38-45d7-8292-2807a34e6634",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				},
+				"b343ba73-7f64-4e82-857c-03e3eedbd1fb": {
+					"x": 575,
+					"y": 1091,
+					"gHeight": 117,
+					"gWidth": 247,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "b343ba73-7f64-4e82-857c-03e3eedbd1fb",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				},
+				"2c8efbf8-9268-4271-816a-82d06577037c": {
+					"x": 545,
+					"y": 559,
+					"gHeight": 117,
+					"gWidth": 247,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "2c8efbf8-9268-4271-816a-82d06577037c",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				},
+				"f337c077-eed0-4f37-8aaa-9736f683b24b": {
+					"x": 111,
+					"y": 1165,
+					"gHeight": 189,
+					"gWidth": 247,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "f337c077-eed0-4f37-8aaa-9736f683b24b",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				},
+				"f46f6634-7674-475c-b944-2f038676c7f8": {
+					"x": 45,
+					"y": 553,
+					"gHeight": 207,
+					"gWidth": 247,
+					"background": "#03a9f4",
+					"color": "#ffffff",
+					"referencedItemId": "f46f6634-7674-475c-b944-2f038676c7f8",
+					"resized": false,
+					"autoExpand": true,
+					"backgroundOpacity": "10"
+				}
+			},
+			"isOpen": true,
+			"main": true,
+			"name": "Main Diagram",
+			"keysgraphics": true,
+			"linegraphics": "detailed",
+			"zoom": 1,
+			"background": "transparent",
+			"scroll": {
+				"x": 0,
+				"y": 0
+			},
+			"type": "erd",
+			"showEstimatedSize": true,
+			"showSchemaContainer": false,
+			"showEmbeddedInParents": true,
+			"showCardinalityCaptions": true,
+			"showRelationshipNames": true,
+			"showLineCaptions": true,
+			"showDependencyCaptions": true,
+			"showColumns": true,
+			"showColumnDataTypes": true,
+			"showSampleData": true,
+			"showTableIndexes": true,
+			"showTableDescriptions": true,
+			"showRelations": true,
+			"showLines": true,
+			"showDependencies": true,
+			"showHorizontal": false,
+			"showDescriptions": true,
+			"showIndicators": false,
+			"showProgress": false,
+			"showIndicatorCaptions": false,
+			"backgroundImage": "na",
+			"descriptionsColor": "transparent",
+			"boxSize": "0",
+			"boxSpacing": "2",
+			"boxAlign": "center",
+			"lineWidth": "2",
+			"embeddedSpacing": "2",
+			"showLabels": true,
+			"showMainIcon": true,
+			"showCustomizations": true,
+			"showExportDimensions": true,
+			"showCompleted": true,
+			"showAnimations": true
+		}
+	},
+	"diagramsOrder": [],
+	"order": [
+		"9ef0f6b8-5482-4f98-b06f-1bb80e9fdd86",
+		"422b6378-4f97-4104-b7f4-dfbd294a2d2f",
+		"dc9710aa-5a38-45d7-8292-2807a34e6634",
+		"b343ba73-7f64-4e82-857c-03e3eedbd1fb",
+		"2c8efbf8-9268-4271-816a-82d06577037c",
+		"f337c077-eed0-4f37-8aaa-9736f683b24b",
+		"f46f6634-7674-475c-b944-2f038676c7f8",
+		"4b5a41ec-4f98-4007-8823-f265fd32ee1c",
+		"571caeaa-2dd3-40f6-9831-d130707e22fb",
+		"afb7f7ca-dc13-41b5-baea-add32e6f04de",
+		"ec3d2b26-cd9b-4c01-9002-a234322a1bc9",
+		"ec13eae0-d25f-4d91-8446-b8fa2b36d51b",
+		"7e9ff4d7-bd7a-4ab2-bc51-7f2e859c3cee"
+	],
+	"collapsedTreeItems": [],
+	"reverseStats": {}
+}
