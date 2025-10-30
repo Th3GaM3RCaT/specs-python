@@ -37,8 +37,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         
         # Botón de escaneo inicial
         if hasattr(self.ui, 'btnEscanear'):
-            self.ui.btnEsc
-            anear.clicked.connect(self.iniciar_escaneo_completo) # type: ignore
+            self.ui.btnEscanear.clicked.connect(self.iniciar_escaneo_completo) # type: ignore
         self.configurar_tabla()
         
         # Deshabilitar botones hasta seleccionar dispositivo
