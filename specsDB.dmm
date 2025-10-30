@@ -694,24 +694,6 @@
 					"estimatedSize": ""
 				},
 				{
-					"id": "6c28fe76-bc42-451a-95b7-8f040eec6230",
-					"name": "fecha_instalacion",
-					"datatype": "DATETIME",
-					"param": "",
-					"pk": false,
-					"nn": false,
-					"fk": false,
-					"comment": "",
-					"defaultvalue": "",
-					"data": "",
-					"after": "",
-					"collation": "",
-					"sqlite": {
-						"autoincrement": false
-					},
-					"estimatedSize": ""
-				},
-				{
 					"id": "2b37b406-8e17-4445-98c5-b0045801b735",
 					"name": "id",
 					"datatype": "INTEGER",
@@ -726,6 +708,24 @@
 					"collation": "",
 					"sqlite": {
 						"autoincrement": true
+					},
+					"estimatedSize": ""
+				},
+				{
+					"id": "6c28fe76-bc42-451a-95b7-8f040eec6230",
+					"name": "fecha_instalacion",
+					"datatype": "DATETIME",
+					"param": "",
+					"pk": false,
+					"nn": false,
+					"fk": false,
+					"comment": "",
+					"defaultvalue": "",
+					"data": "",
+					"after": "",
+					"collation": "",
+					"sqlite": {
+						"autoincrement": false
 					},
 					"estimatedSize": ""
 				}
@@ -1384,7 +1384,8 @@
 			"includeCreationSql": "no"
 		},
 		"connectionVersion": "",
-		"lastSaved": 1761564455289
+		"lastSaved": 1761657747296,
+		"modelScriptsDir": "C:\\Users\\estudiante\\Documents\\specs-python\\sql_specs\\statement"
 	},
 	"otherObjects": {},
 	"diagrams": {

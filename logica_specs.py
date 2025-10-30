@@ -168,10 +168,20 @@ def enviar_a_servidor():
         with open("servidor.json", "w", encoding="utf-8") as f:
             dump(addr, f, indent=4)
 
-        with open("dxdiag_output.txt", "r", encoding="utf-8") as f:
+        with open("dxdiag_output.txt", "r", encoding="cp1252") as f:
             txt_data = f.read()
         # Incluir el TXT dentro del JSON
         new["dxdiag_output_txt"] = txt_data
+        
+        # Agregar IP del cliente
+        try:
+            # Obtener IP local conectando al servidor
+            temp_sock = socket(AF_INET, SOCK_DGRAM)
+            temp_sock.connect((HOST, PORT))
+            new["client_ip"] = temp_sock.getsockname()[0]
+            temp_sock.close()
+        except:
+            new["client_ip"] = "unknown"
 
         # Conectar vía TCP y enviar todo
         cliente = socket(AF_INET, SOCK_STREAM)

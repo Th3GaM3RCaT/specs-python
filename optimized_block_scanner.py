@@ -10,11 +10,6 @@ Ejemplo:
   python3 optimized_block_scanner.py --start 100 --end 119 --use-broadcast-probe
 
 """
-import time
-
-# Inicio del contador lo más arriba posible
-start_time = time.time()
-
 import argparse
 import asyncio
 import ipaddress
@@ -479,8 +474,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# Fin del contador al final del script
-end_time = time.time()
-print(f"Tiempo total de ejecución: {end_time - start_time:.6f} segundos")

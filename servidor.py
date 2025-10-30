@@ -94,32 +94,22 @@ if __name__ == "__main__":
     window.show()
     app.exec()
 
-# # por compatibilidad
-# combobox consulte de la red primero y luego de los archivos
-# combobox muestre usuario y mac en vez de nombre del archivo
 
 # # por comodidad
 # unificar aplicacion (mas lejos)
 # codigo para cambiar modo cliente/servidor           k
 
-# # porque quedaron al aire
-# verificar tamaño de interfaz servidor
-# pensar en que agregar al boton sin nombre (mostrar mapa de red)
 
 # # pendientes
-# leer y guardar json en all_specs (etiquetar todos los que leen y guardan para futura migracion a DB)
-# migrar a DB para comparar estado (conectado/desconectado) de paso arreglar error en all_specs que avisa no tiener estado del dispositivo
+
+# migrar a DB para comparar estado (conectado/desconectado) 
 # cambiar el formato de all_specs de csv a formato compatible con DB
-# crear DB relacional, consultas y demas cosas
-# crear un modelo de consultas
 # 
 # terminar el modo tarea
 # proximamente migrar a DB (por parte del servidor, el cliente queda igual)
 # #
 
 # # sugerencias del equipo
-# mostrar todos los dispositivos y su estado actual (encendido/apagado)
 # presentar mapa de red estilo nmap o similares (opciones QGraphicsScene y NetworkX)
 # escaneo de red (listo) para enlistar por subred y descubrir intrusos
-# historial de cambios aprovechando el reporte diario
 # #
