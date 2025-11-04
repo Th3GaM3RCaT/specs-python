@@ -1,5 +1,9 @@
 # Sistema de Inventario de Hardware en Red
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
+
 Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red, almacena la información en una base de datos SQLite y presenta una interfaz gráfica para visualización y gestión.
 
 ---
@@ -28,6 +32,7 @@ Sistema cliente-servidor para Windows que recopila especificaciones de hardware/
 11. [Mejoras Futuras](#mejoras-futuras)
 12. [Troubleshooting](#troubleshooting)
 13. [Contacto y Soporte](#contacto-y-soporte)
+14. [Licencia](#-licencia)
 
 ---
 
@@ -496,3 +501,18 @@ sqlite3         # Base de datos (incluido en Python)
 ## Contacto y Soporte
 
 Para reportar bugs o solicitar features, crear issue en el repositorio.
+
+---
+
+## 📄 Licencia
+
+Este proyecto está licenciado bajo la [MIT License](LICENSE).
+
+**En resumen:**
+- ✅ Uso comercial permitido
+- ✅ Modificación permitida
+- ✅ Distribución permitida
+- ✅ Uso privado permitido
+- ℹ️ Requiere incluir el aviso de copyright y licencia
+
+Para más detalles, consulta el archivo [LICENSE](LICENSE).
