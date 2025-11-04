@@ -2,6 +2,35 @@
 
 Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red, almacena la información en una base de datos SQLite y presenta una interfaz gráfica para visualización y gestión.
 
+---
+
+## 📑 Índice
+
+1. [Estructura del Proyecto](#-estructura-del-proyecto)
+2. [Inicio Rápido](#-inicio-rápido)
+   - [Instalación](#instalación)
+   - [Ejecución](#ejecución)
+3. [Arquitectura del Sistema](#arquitectura-del-sistema)
+   - [Cliente](#1-cliente-srcspecspy)
+   - [Servidor](#2-servidor-servidorpy--logica_servidorpy)
+   - [Interfaz de Gestión](#3-interfaz-de-gestión-mainservidorpy)
+   - [Escaneo de Red](#4-escaneo-de-red-optimized_block_scannerpy)
+4. [Flujo de Trabajo Completo](#flujo-de-trabajo-completo)
+   - [Instalación Inicial](#instalación-inicial)
+   - [Proceso de Recopilación de Datos](#proceso-de-recopilación-de-datos)
+   - [Escaneo y Descubrimiento Masivo](#escaneo-y-descubrimiento-masivo)
+5. [Mapeo de Datos JSON → Base de Datos](#mapeo-de-datos-json--base-de-datos)
+6. [Funciones Principales](#funciones-principales)
+7. [Compilación (PyInstaller)](#compilación-pyinstaller)
+8. [Configuración de Puertos](#configuración-de-puertos)
+9. [Dependencias](#dependencias)
+10. [Notas de Implementación](#notas-de-implementación)
+11. [Mejoras Futuras](#mejoras-futuras)
+12. [Troubleshooting](#troubleshooting)
+13. [Contacto y Soporte](#contacto-y-soporte)
+
+---
+
 ## 📁 Estructura del Proyecto
 
 ```
