@@ -4,21 +4,21 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                        RED LOCAL (LAN)                                │
+│                        RED LOCAL (LAN)                               │
 │                    10.100.0.0/16 - 10.119.0.0/16                     │
 ├──────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌─────────────────┐                        ┌──────────────────┐   │
-│  │   SERVIDOR      │                        │   CLIENTE 1      │   │
-│  │  (servidor.py)  │                        │  (specs.py)      │   │
-│  │                 │                        │                  │   │
-│  │  Puerto 5255    │◄─────── TCP ──────────│  TCP Client      │   │
-│  │  (TCP Server)   │      Datos JSON       │                  │   │
-│  │                 │                        │                  │   │
-│  │  Puerto 37020   │──── UDP Broadcast ────►│  Puerto 37020    │   │
-│  │  (UDP Sender)   │  "servidor specs"     │  (UDP Listener)  │   │
-│  └─────────────────┘       cada 10s         └──────────────────┘   │
-│                                                                       │
+│                                                                      │
+│  ┌─────────────────┐                        ┌──────────────────┐     │
+│  │   SERVIDOR      │                        │   CLIENTE 1      │     │
+│  │  (servidor.py)  │                        │  (specs.py)      │     │
+│  │                 │                        │                  │     │
+│  │  Puerto 5255    │◄─────── TCP ───────────│  TCP Client      │     │
+│  │  (TCP Server)   │      Datos JSON        │                  │     │
+│  │                 │                        │                  │     │
+│  │  Puerto 37020   │──── UDP Broadcast ────►│  Puerto 37020    │     │
+│  │  (UDP Sender)   │  "servidor specs"      │  (UDP Listener)  │     │
+│  └─────────────────┘       cada 10s         └──────────────────┘     │
+│                                                                      │
 │                            ┌──────────────────┐                      │
 │                            │   CLIENTE 2      │                      │
 │                            │  (specs.py)      │                      │
@@ -45,7 +45,7 @@ USUARIO         CLIENTE (GUI)           SERVIDOR
    │                 │    │ Listen 5255     │ (recibe datos)
    │                 │    │                 │
    │                 │    │ Thread 2:       │ Broadcast Loop
-   │                 │    │ cada 10s ───────►┤ sendto(37020)
+   │                 │    │ cada 10s ──────►┤ sendto(37020)
    │                 │    │ "servidor specs"│
    │                 │    └─────────────────┤
    │  1. Click       │                      │
@@ -58,7 +58,7 @@ USUARIO         CLIENTE (GUI)           SERVIDOR
    │                 │ 3. recvfrom() ───────│
    │                 │    espera broadcast  │
    │                 │                      │
-   │                 │◄────────────────────┤ 4. Broadcast recibido
+   │                 │◄─────────────────────┤ 4. Broadcast recibido
    │                 │  "servidor specs"    │    addr=(IP_SERVER, ...)
    │                 │                      │
    │                 │ 5. informe()         │
@@ -72,7 +72,7 @@ USUARIO         CLIENTE (GUI)           SERVIDOR
    │                 │ 7. TCP connect ──────►
    │                 │    (IP_SERVER:5255)  │
    │                 │                      │
-   │                 │ 8. sendall(JSON) ────►┤ 9. consultar_informacion()
+   │                 │ 8. sendall(JSON) ───►┤ 9. consultar_informacion()
    │                 │                      │    - verify_auth_token()
    │                 │                      │    - is_ip_allowed()
    │                 │                      │    - sanitize_field()
@@ -84,7 +84,7 @@ USUARIO         CLIENTE (GUI)           SERVIDOR
    │                 │                      │
    │                 │◄─────────────────────┤ 11. conn.close()
    │                 │                      │
-   │◄─── "Enviado" ─┤                      │
+   │◄─── "Enviado" ──┤                      │
    │                 │                      │
 ```
 
@@ -101,7 +101,7 @@ SISTEMA         CLIENTE (--tarea)         SERVIDOR
    │                 │                      │
    │                 │ 2. escuchar_broadcast()
    │                 │    bind(37020)       │
-   │                 │    while True: ──────►┤ Loop infinito
+   │                 │    while True: ─────►┤ Loop infinito
    │                 │    recvfrom()        │
    │                 │                      │
    │                 │                      │ 3. Broadcast cada 10s
@@ -119,7 +119,7 @@ SISTEMA         CLIENTE (--tarea)         SERVIDOR
    │                 │    + auth_token      │
    │                 │                      │
    │                 │ 7. TCP connect ──────►
-   │                 │    sendall(JSON) ────►┤ 8. Procesar y guardar
+   │                 │    sendall(JSON) ───►┤ 8. Procesar y guardar
    │                 │                      │
    │                 │◄─────────────────────┤ 9. close()
    │                 │                      │
@@ -173,56 +173,56 @@ SISTEMA         CLIENTE (--tarea)         SERVIDOR
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│                    VALIDACIONES DE SEGURIDAD                   │
+│                    VALIDACIONES DE SEGURIDAD                  │
 ├───────────────────────────────────────────────────────────────┤
-│                                                                │
-│  1️⃣ IP Whitelist                                             │
-│     ┌─────────────────────────────────────────┐              │
-│     │ is_ip_allowed(client_ip)                │              │
-│     │ ALLOWED_SUBNETS = [                     │              │
-│     │   "10.100.0.0/16",                      │              │
-│     │   "10.119.0.0/16",                      │              │
-│     │   "127.0.0.1/32"                        │              │
-│     │ ]                                       │              │
-│     └─────────────────────────────────────────┘              │
+│                                                               │
+│  1  IP Whitelist                                              │
+│     │ is_ip_allowed(client_ip)                │               │
+│     ┌─────────────────────────────────────────┐               │
+│     │ ALLOWED_SUBNETS = [                     │               │
+│     │   "10.100.0.0/16",                      │               │
+│     │   "10.119.0.0/16",                      │               │
+│     │   "127.0.0.1/32"                        │               │
+│     │ ]                                       │               │
+│     └─────────────────────────────────────────┘               │
 │                         ↓                                     │
-│                    ✅ Permitida / ❌ Bloqueada                │
-│                                                                │
-│  2️⃣ Rate Limiting                                            │
-│     ┌─────────────────────────────────────────┐              │
-│     │ connections_per_ip[IP] <= 3             │              │
-│     │ MAX_CONNECTIONS_PER_IP = 3              │              │
-│     └─────────────────────────────────────────┘              │
+│                    ✅ Permitida / ❌ Bloqueada               │
+│                                                               │
+│  2  Rate Limiting                                             │
+│     ┌─────────────────────────────────────────┐               │
+│     │ connections_per_ip[IP] <= 3             │               │
+│     │ MAX_CONNECTIONS_PER_IP = 3              │               │
+│     └─────────────────────────────────────────┘               │
 │                         ↓                                     │
-│                    ✅ Aceptar / ❌ Rechazar                   │
-│                                                                │
-│  3️⃣ Token Authentication                                     │
-│     ┌─────────────────────────────────────────┐              │
-│     │ token = json_data.get("auth_token")     │              │
-│     │ verify_auth_token(token)                │              │
-│     │   - HMAC-SHA256                         │              │
-│     │   - Timestamp-based (5 min window)      │              │
-│     └─────────────────────────────────────────┘              │
+│                    ✅ Aceptar / ❌ Rechazar                  │
+│                                                               │
+│  3 Token Authentication                                       │
+│     ┌─────────────────────────────────────────┐               │
+│     │ token = json_data.get("auth_token")     │               │
+│     │ verify_auth_token(token)                │               │
+│     │   - HMAC-SHA256                         │               │
+│     │   - Timestamp-based (5 min window)      │               │
+│     └─────────────────────────────────────────┘               │
 │                         ↓                                     │
-│                    ✅ Válido / ❌ Inválido                    │
-│                                                                │
-│  4️⃣ Buffer Overflow Protection                               │
-│     ┌─────────────────────────────────────────┐              │
-│     │ len(buffer) <= MAX_BUFFER_SIZE          │              │
-│     │ MAX_BUFFER_SIZE = 10 MB                 │              │
-│     └─────────────────────────────────────────┘              │
+│                    ✅ Válido / ❌ Inválido                   │
+│                                                               │
+│  4 Buffer Overflow Protection                                 │
+│     ┌─────────────────────────────────────────┐               │
+│     │ len(buffer) <= MAX_BUFFER_SIZE          │               │
+│     │ MAX_BUFFER_SIZE = 10 MB                 │               │
+│     └─────────────────────────────────────────┘               │
 │                         ↓                                     │
-│                    ✅ Procesar / ❌ Cerrar                    │
-│                                                                │
-│  5️⃣ Input Sanitization                                       │
-│     ┌─────────────────────────────────────────┐              │
-│     │ serial = sanitize_field(data)           │              │
-│     │   - Truncar a 1024 chars                │              │
-│     │   - Remover caracteres de control       │              │
-│     └─────────────────────────────────────────┘              │
+│                    ✅ Procesar / ❌ Cerrar                   │
+│                                                               │
+│  5 Input Sanitization                                         │
+│     ┌─────────────────────────────────────────┐               │
+│     │ serial = sanitize_field(data)           │               │
+│     │   - Truncar a 1024 chars                │               │
+│     │   - Remover caracteres de control       │               │
+│     └─────────────────────────────────────────┘               │
 │                         ↓                                     │
-│                    ✅ Guardar en DB                           │
-│                                                                │
+│                     Guardar en DB                             │
+│                                                               │
 └───────────────────────────────────────────────────────────────┘
 ```
 

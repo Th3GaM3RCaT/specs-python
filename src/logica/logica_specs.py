@@ -18,6 +18,34 @@ from wmi import WMI
 nombre_tarea = "informe_de_dispositivo"  # Usado por configurar_tarea()
 new = {}  # Diccionario compartido para datos del sistema (patrón establecido)
 
+# Callback opcional para mensajes de estado (usado por GUI)
+_status_callback = None
+
+def set_status_callback(callback):
+    """Configura callback para mensajes de estado.
+    
+    Args:
+        callback (callable): Función que recibe (mensaje: str) para actualizar UI
+        
+    Example:
+        set_status_callback(lambda msg: statusbar.showMessage(msg))
+    """
+    global _status_callback
+    _status_callback = callback
+
+def _print_status(mensaje):
+    """Imprime mensaje y opcionalmente lo envía al callback de UI.
+    
+    Args:
+        mensaje (str): Mensaje a mostrar
+    """
+    print(mensaje)
+    if _status_callback:
+        try:
+            _status_callback(mensaje)
+        except Exception as e:
+            print(f"Error en callback de estado: {e}")
+
 
 def get_size(bytes, suffix="B"):
     factor = 1024
@@ -214,7 +242,7 @@ def enviar_a_servidor():
         security_available = True
     except ImportError:
         security_available = False
-        print("⚠️  WARNING: security_config no disponible, enviando sin autenticación")
+        _print_status("⚠️  WARNING: security_config no disponible, enviando sin autenticación")
     
     # Cargar puertos desde .env
     try:
@@ -231,7 +259,7 @@ def enviar_a_servidor():
     s = socket(AF_INET, SOCK_DGRAM)
     s.settimeout(5)
     s.bind(("", discovery_port))
-    print(f"🔍 Buscando servidor (escuchando broadcasts en puerto {discovery_port})...")
+    _print_status(f"🔍 Buscando servidor (escuchando broadcasts en puerto {discovery_port})...")
     
 
     try:
@@ -240,7 +268,7 @@ def enviar_a_servidor():
         HOST = addr[0]
         s.close()  # Cerrar socket UDP
         
-        print("Servidor encontrado:", HOST)
+        _print_status(f"✓ Servidor encontrado: {HOST}")
 
         # Directorio para archivos de salida
         output_dir = Path(__file__).parent.parent.parent / "output"
@@ -269,23 +297,23 @@ def enviar_a_servidor():
         if security_available and generate_auth_token:
             try:
                 new["auth_token"] = generate_auth_token()
-                print("✓ Token de autenticación agregado")
+                _print_status("✓ Token de autenticación agregado")
             except ValueError as e:
-                print(f"⚠️  ERROR generando token: {e}")
-                print("   Configurar SHARED_SECRET en security_config.py")
+                _print_status(f"⚠️  ERROR generando token: {e}")
+                _print_status("   Configurar SHARED_SECRET en security_config.py")
                 return  # No enviar sin autenticación si está habilitada
         
         # Conectar vía TCP y enviar todo
-        print(f"🔌 Conectando al servidor {HOST}:{tcp_port}...")
+        _print_status(f"🔌 Conectando al servidor {HOST}:{tcp_port}...")
         cliente = socket(AF_INET, SOCK_STREAM)
         cliente.connect((HOST, tcp_port))
         cliente.sendall(dumps(new).encode("utf-8"))
         cliente.close()
-        print("✓ Datos enviados correctamente al servidor")
+        _print_status("✓ Datos enviados correctamente al servidor")
 
     except timeout:
-        print("❌ Timeout: No se encontró el servidor (esperó 5 segundos)")
-        print("   Verificar que el servidor esté ejecutándose")
+        _print_status("❌ Timeout: No se encontró el servidor (esperó 5 segundos)")
+        _print_status("   Verificar que el servidor esté ejecutándose")
 
 
 def configurar_tarea(valor=1):

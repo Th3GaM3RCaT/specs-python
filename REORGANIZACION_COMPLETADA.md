@@ -6,21 +6,21 @@
 
 ```
 specs-python/
-├── 📂 src/              # TODO el código fuente
-│   ├── specs.py, servidor.py, all_specs.py
-│   ├── logica/          # Lógica de negocio
-│   ├── datos/           # Recolección de datos
-│   ├── sql/             # Base de datos
-│   └── ui/              # Interfaces Qt (.ui + _ui.py juntos)
-│
-├── 📂 scripts/          # Utilidades (build, sign, install)
-├── 📂 tests/            # Tests automatizados
-├── 📂 docs/             # Toda la documentación
-├── 📂 config/           # Configuración (security_config.py)
-├── 📂 data/             # Datos runtime (*.db, *.csv)
-│
-├── run_cliente.py       # Wrapper: ejecuta src/specs.py
-├── run_servidor.py      # Wrapper: ejecuta src/servidor.py
+├── 📂 src/                         # TODO el código fuente
+│   ├── specs.py, mainServidor.py
+│   ├── logica/                      # Lógica de negocio
+│   ├── datos/                       # Recolección de datos
+│   ├── sql/                         # Base de datos
+│   └── ui/                          # Interfaces Qt (.ui + _ui.py juntos)
+│           
+├── 📂 scripts/                     # Utilidades (build, sign, install)
+├── 📂 tests/                       # Tests automatizados
+├── 📂 docs/                        # Toda la documentación
+├── 📂 config/                      # Configuración (security_config.py)
+├── 📂 data/                        # Datos runtime (*.db, *.csv)
+│           
+├── run_cliente.py                   # Wrapper: ejecuta src/specs.py
+├── run_servidor.py                  # Wrapper: ejecuta src/servidor.py
 ├── requirements.txt
 └── README.md
 ```
@@ -209,38 +209,5 @@ Toda la documentación movida a `docs/`:
 - `docs/NETWORK_FLOW.md` - Arquitectura de red detallada
 - `docs/SECURITY_README.md` - Configuración de seguridad
 - `docs/REORGANIZACION.md` - Propuesta de reorganización (este archivo)
-
-## ✨ Próximos Pasos
-
-1. ✅ Probar que todo funciona:
-   ```powershell
-   python run_servidor.py
-   python run_cliente.py
-   ```
-
-2. ✅ Configurar seguridad:
-   ```powershell
-   Copy-Item config/security_config.example.py config/security_config.py
-   # Editar SHARED_SECRET
-   ```
-
-3. ✅ Compilar ejecutables:
-   ```powershell
-   .\scripts\build_all.ps1
-   ```
-
-4. ✅ Ejecutar tests:
-   ```powershell
-   python tests/test_connectivity.py
-   ```
-
-5. ✅ Commit cambios:
-   ```powershell
-   git add .
-   git commit -m "Reorganizar proyecto con estructura modular"
-   git push
-   ```
-
----
 
 **🎉 Reorganización completada exitosamente!**

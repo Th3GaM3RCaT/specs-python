@@ -44,7 +44,8 @@ def escuchar_broadcast(port=None, on_message=None):
     except KeyboardInterrupt:
         print("\nÔ£ô Cliente detenido por usuario.")
     except Exception as e:
-        print(f"ÔØî Error en escucha: {e}")
+        print(f"Error en escucha: {e}")
+        
     finally:
         sock.close()
 
@@ -132,9 +133,21 @@ else:
             self.hilo_infDirectX = None
             self.vbox = QVBoxLayout()
             self.initUI()
+            
+            # Configurar callback de estado para logica_specs
+            lsp.set_status_callback(self.actualizar_estado)
+
+        def actualizar_estado(self, mensaje):
+            """Actualiza la barra de estado de forma thread-safe.
+            
+            Args:
+                mensaje (str): Mensaje a mostrar en la statusbar
+            """
+            # showMessage es thread-safe en Qt
+            self.statusbar.showMessage(mensaje, 5000)  # 5 segundos de timeout
 
         def initUI(self):
-            """Inicializa se├▒ales y conexiones de la UI."""
+            """Inicializa señales y conexiones de la UI."""
             self.run_button.clicked.connect(self.iniciar_informe)
             self.send_button.clicked.connect(self.enviar)
             self.actionDetener_ejecuci_n.triggered.connect(lambda: lsp.configurar_tarea(2))
@@ -148,16 +161,18 @@ else:
             self.hilo_infDirectX.start()
         
         def iniciar_informe(self):
-            """Inicia recopilaci├│n de informaci├│n del sistema."""
+            """Inicia recopilación de información del sistema."""
+            self.statusbar.showMessage("📊 Iniciando recopilación de especificaciones...", 3000)
             self.informeDirectX()
             self.run_button.setEnabled(False)
             self.hilo_informe = Hilo(lsp.informe)
             self.hilo_informe.terminado.connect(self.entregar_informe_seguro)
-            self.hilo_informe.error.connect(lambda e: self.statusbar.showMessage(f"Error: {e}"))
+            self.hilo_informe.error.connect(lambda e: self.statusbar.showMessage(f"❌ Error: {e}", 5000))
             self.hilo_informe.start()
        
         def entregar_informe_seguro(self, resultado):
             """Actualiza UI con el informe generado (thread-safe)."""
+            self.statusbar.showMessage("✓ Especificaciones recopiladas exitosamente", 3000)
             self.entregar_informe(resultado)
             widget = QWidget()
             widget.setLayout(self.vbox)
@@ -176,10 +191,13 @@ else:
 
         def enviar(self):
             """Envía especificaciones al servidor."""
+            self.statusbar.showMessage("📡 Preparando envío de datos...", 2000)
             self.send_button.setEnabled(False)
             with open("salida.json", "w", encoding="utf-8") as f:
                 dump(lsp.new, f, indent=4)
             self.hilo_enviar = Hilo(lsp.enviar_a_servidor)
+            self.hilo_enviar.terminado.connect(lambda: self.send_button.setEnabled(True))
+            self.hilo_enviar.error.connect(lambda e: self.statusbar.showMessage(f"❌ Error al enviar: {e}", 5000))
             self.hilo_enviar.start()
 
     def main():

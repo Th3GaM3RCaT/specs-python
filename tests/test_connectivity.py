@@ -157,7 +157,7 @@ def test_autenticacion(server_ip, port=5255):
     
     # Verificar si security_config existe
     try:
-        from security_config import generate_auth_token, SHARED_SECRET
+        from security_config import generate_auth_token, SHARED_SECRET # type: ignore
         security_enabled = True
         print_success("security_config.py encontrado")
         
@@ -242,7 +242,7 @@ def test_flujo_completo(timeout=15):
         # Paso 2: Verificar si security_config existe
         print_info("\nPASO 2: Preparar autenticación")
         try:
-            from security_config import generate_auth_token
+            from security_config import generate_auth_token # type: ignore
             token = generate_auth_token()
             print_success("Token de autenticación generado")
         except ImportError:

@@ -331,17 +331,71 @@ Extrae del JSON donde:
 
 ## Compilación (PyInstaller)
 
-### Servidor:
-```bash
-pyinstaller --onedir --noconsole servidor.py ^
-  --add-data "sql_specs/statement/*.sql;sql_specs/statement"
+### Opción 1: Usando Scripts Automatizados (Recomendado)
+
+```powershell
+# Compilar Cliente
+.\scripts\build_cliente.ps1
+
+# Compilar Servidor
+.\scripts\build_servidor.ps1
 ```
 
-### Cliente:
-```bash
-pyinstaller --onedir --noconsole specs.py ^
-  --hidden-import=wmi --hidden-import=psutil
+**Nota**: Si PowerShell bloquea la ejecución de scripts, ejecuta una vez:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
+
+### Opción 2: Comando Manual
+
+#### Cliente:
+```powershell
+pyinstaller --onedir --noconsole --name "SpecsCliente" --add-data "src/ui/*.ui;ui" --hidden-import=wmi --hidden-import=psutil --hidden-import=getmac --hidden-import=windows_tools.installed_software --paths=src src/specs.py
+```
+
+#### Servidor:
+```powershell
+pyinstaller --onedir --noconsole --name "SpecsServidor" --add-data "src/sql/statement/*.sql;sql/statement" --add-data "src/ui/*.ui;ui" --hidden-import=wmi --hidden-import=psutil --paths=src src/servidor.py
+```
+
+### Resultado
+
+Los ejecutables se generan en:
+- **Cliente**: `dist/SpecsCliente/SpecsCliente.exe`
+- **Servidor**: `dist/SpecsServidor/SpecsServidor.exe`
+
+Para distribuir, comprime las carpetas completas:
+- `dist/SpecsCliente/` → `SpecsCliente.zip`
+- `dist/SpecsServidor/` → `SpecsServidor.zip`
+
+### Notas de Compilación
+
+- **`--paths=src`**: ⚠️ **CRÍTICO** - Agrega directorio `src/` al Python path para resolver imports (`from logica.xxx`). Sin esto, PyInstaller no puede encontrar los módulos.
+- **`--add-data`**: Incluye archivos no-Python necesarios en runtime (archivos `.ui`, `.sql`)
+- **`--onedir`**: Genera un directorio con el .exe y todas las dependencias (inicio rápido, ~5-10x más rápido que `--onefile`)
+- **`--noconsole`**: No muestra ventana de consola (solo GUI)
+- **`--hidden-import`**: Fuerza la inclusión de módulos que PyInstaller no detecta automáticamente
+
+### ¿Por qué `--onedir` en lugar de `--onefile`?
+
+| Característica | `--onefile` | `--onedir` |
+|----------------|-------------|------------|
+| Velocidad de inicio | ❌ Lento (5-15 seg) | ✅ Rápido (<1 seg) |
+| Distribución | ✅ Un solo .exe | ❌ Carpeta completa |
+| Tamaño | ~47 MB | ~60 MB (carpeta) |
+| Debugging | ❌ Difícil | ✅ Fácil (archivos visibles) |
+
+**Recomendación**: Usar `--onedir` para aplicaciones que se ejecutan frecuentemente (como este cliente/servidor).
+
+### Debugging
+
+Si el ejecutable falla al iniciar, usa `--console` para ver errores:
+
+```powershell
+pyinstaller --onedir --console --name "SpecsCliente_Debug" --paths=src src/specs.py
+```
+
+Esto mostrará la ventana de consola con los errores de Python.
 
 ## Configuración de Puertos
 
