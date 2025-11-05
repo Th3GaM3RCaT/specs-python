@@ -1,535 +1,252 @@
-# Sistema de Inventario de Hardware en Red# Sistema de Inventario de Hardware en Red
-
-
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-
-[![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)[![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
-
-
-
-Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red. **Filosofía: "Ejecutar y olvidarse"** - interfaz simple con 2 botones y modo tarea automático.Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red. **Filosofía: "Ejecutar y olvidarse"** - interfaz simple con 2 botones y modo tarea automático.
-
-
-
-------
-
-
-
-## Inicio Rápido## Inicio Rápido
-
-
-
-### Instalación### Instalación
-
-```bash```bash
-
-pip install -r requirements.txtpip install -r requirements.txt
-
-``````
-
-
-
-### Ejecución### Ejecución
-
-
-
-**Cliente:****Cliente:**
-
-```bash```bash
-
-python run_cliente.py              # Modo GUI (2 botones: Enviar/Cancelar)python run_cliente.py              # Modo GUI (2 botones: Enviar/Cancelar)
-
-python src/specs.py --tarea        # Modo tarea silencioso (auto-envío)python src/specs.py --tarea        # Modo tarea silencioso (auto-envío)
-
-``````
-
-
-
-**Servidor:****Servidor:**
-
-```bash```bash
-
-python run_servidor.py             # Servidor TCP + UI gestiónpython run_servidor.py             # Servidor TCP + UI gestión
-
-``````
-
-
-
-**Inventario:****Inventario:**
-
-```bash```bash
-
-python src/all_specs.py            # Ver todos los dispositivospython src/all_specs.py            # Ver todos los dispositivos
-
-``````
-
-
-
-------
-
-
-
-## Arquitectura## Estructura del Proyecto
-
-
-
-### 1. Cliente (`src/specs.py`)```
-
-- **Modo GUI**: Ventana simple con 2 botones (Enviar/Cancelar)specs-python/
-
-- **Modo Tarea**: `--tarea` flag para ejecución silenciosa automática│
-
-- **Discovery**: Escucha broadcasts UDP del servidor (puerto 37020)├── run_cliente.py                   # Ejecutar cliente
-
-- **Recolección**: Usa WMI, psutil, dxdiag para obtener specs completas├── run_servidor.py                  # Ejecutar servidor
-
-- **Envío**: JSON vía TCP (puerto 5255) al servidor├── requirements.txt                 # Dependencias
-
-├── specs.db                         # Base de datos SQLite
-
-### 2. Servidor (`src/servidor.py`)│
-
-- **TCP Server**: Puerto 5255 - recibe datos de clientes├── src/
-
-- **UDP Broadcast**: Anuncia IP en 255.255.255.255:37020│   ├── specs.py                     # Cliente (entry point)
-
-- **Almacenamiento**: SQLite (`specs.db`)│   ├── servidor.py                  # Servidor (entry point)
-
-- **UI Gestión**: `mainServidor.py` - visualiza dispositivos con estado en tiempo real│   ├── all_specs.py                 # Inventario (entry point)
-
-│   ├── mainServidor.py              # UI servidor
-
-### 3. Monitoreo Inteligente│   │
-
-- **Monitor de Tendencias**: Alertas basadas en 3 consultas consecutivas│   ├── logica/                      # Lógica de negocio
-
-  - RAM > 74%, CPU > 74%, Disco > 85%│   │   ├── logica_specs.py          # Recolección datos sistema
-
-  - Se resetea automáticamente cuando baja del umbral│   │   ├── logica_servidor.py       # Servidor TCP
-
-  - Ver `src/logica/INTEGRACION_MONITOR_TENDENCIAS.py` para integrar│   │   ├── monitor_tendencias.py    # Alertas inteligentes
-
-- **Detector de Spoofing**: Query SQL para detectar MACs duplicadas│   │   ├── detector_spoofing_simple.py
-
-- **Agente de Verificación**: Escaneo ARP local sin pings activos│   │   └── agente_verificacion.py
-
-│   │
-
-### 4. Escaneo de Red│   ├── datos/                       # Módulos recolección
-
-- **Segmentos**: 10.100.0.0/16 a 10.119.0.0/16│   │   ├── serialNumber.py          # Serial BIOS
-
-- **Métodos**: SSDP/mDNS probes + ping-sweep asíncrono│   │   ├── get_ram.py               # Info RAM
-
-- **Batch Size**: 50 dispositivos paralelos (evita saturación)│   │   ├── informeDirectX.py        # Info GPU (dxdiag)
-
-- **Output**: CSV con formato `optimized_scan_YYYYMMDD_HHMMSS.csv`│   │   └── scan_ip_mac.py           # Escaneo red
-
-│   │
-
----│   ├── ui/                          # Interfaces Qt Designer
-
-│   │   ├── specs_window.ui          # UI cliente
-
-## Estructura del Proyecto│   │   ├── servidor_specs_window.ui # UI servidor
-
-│   │   └── inventario.ui            # UI inventario
-
-```│   │   ├── logica_servidor.py       # Servidor TCP/UDP + procesamiento
-
-specs-python/│   │   ├── logica_Hilo.py           # Threading helpers (Hilo, HiloConProgreso)
-
-││   │   └── mainServidor.py          # UI principal del servidor
-
-├── run_cliente.py                   # Ejecutar cliente│   │
-
-├── run_servidor.py                  # Ejecutar servidor│   ├── 📂 datos/                    # Módulos de recolección de datos
-
-├── requirements.txt                 # Dependencias│   │   ├── scan_ip_mac.py           # Escaneo de red + resolución MAC
-
-├── specs.db                         # Base de datos SQLite│   │   ├── get_ram.py               # Información de módulos RAM
-
-││   │   ├── informeDirectX.py        # Parseo de dxdiag
-
-├── src/│   │   ├── ipAddress.py             # Detección de IP local
-
-│   ├── specs.py                     # Cliente (entry point)│   │   └── serialNumber.py          # Número de serie del equipo
-
-│   ├── servidor.py                  # Servidor (entry point)│   │
-
-│   ├── all_specs.py                 # Inventario (entry point)│   ├── 📂 sql/                      # Capa de base de datos
-
-│   ├── mainServidor.py              # UI servidor│   │   ├── consultas_sql.py         # Funciones de acceso a DB
-
-│   ││   │   ├── specs.sql                # Schema de la base de datos
-
-│   ├── logica/                      # Lógica de negocio│   │   └── 📂 statement/            # Queries SQL parametrizadas
-
-│   │   ├── logica_specs.py          # Recolección datos sistema│   │       ├── Dispositivos-select.sql
-
-│   │   ├── logica_servidor.py       # Servidor TCP│   │       ├── activo-select.sql
-
-│   │   ├── logica_Hilo.py           # Threading helpers│   │       └── ... (otros queries)
-
-│   │   ├── monitor_tendencias.py    # Alertas inteligentes│   │
-
-│   │   ├── detector_spoofing_simple.py│   └── 📂 ui/                       # Interfaces Qt Designer
-
-│   │   ├── agente_verificacion.py│       ├── specs_window.ui          # Diseño cliente
-
-│   │   └── INTEGRACION_MONITOR_TENDENCIAS.py  # Guía integración│       ├── specs_window_ui.py       # Auto-generado por extensión
-
-│   ││       ├── servidor_specs_window.ui
-
-│   ├── datos/                       # Módulos recolección│       ├── servidor_specs_window_ui.py
-
-│   │   ├── serialNumber.py          # Serial BIOS│       ├── inventario.ui
-
-│   │   ├── get_ram.py               # Info RAM│       ├── inventario_ui.py
-
-│   │   ├── informeDirectX.py        # Info GPU (dxdiag)│       ├── all_specs.ui
-
-│   │   ├── ipAddress.py             # IP local│       └── all_specs_ui.py
-
-│   │   └── scan_ip_mac.py           # Escaneo red│
-
-│   │├── 📂 scripts/                      # Scripts de utilidad
-
-│   ├── sql_specs/                   # Capa base de datos│   ├── build_all.ps1                # Compilar con PyInstaller
-
-│   │   ├── consultas_sql.py         # Funciones acceso DB│   ├── sign_executables.ps1         # Firmar ejecutables
-
-│   │   ├── specs.sql                # Schema SQLite│   ├── create_self_signed_cert.ps1  # Crear certificado para testing
-
-│   │   └── statement/               # Queries SQL parametrizadas│   ├── install.ps1                  # Instalador desde código fuente
-
-│   ││   └── optimized_block_scanner.py   # Escáner masivo de red
-
-│   └── ui/                          # Interfaces Qt Designer│
-
-│       ├── specs_window.ui          # UI cliente├── 📂 tests/                        # Tests automatizados
-
-│       ├── servidor_specs_window.ui # UI servidor│   └── test_connectivity.py         # Tests de conectividad cliente-servidor
-
-│       └── inventario.ui            # UI inventario│
-
-│├── 📂 docs/                         # Documentación
-
-├── scripts/                         # Scripts build/deploy│   ├── DISTRIBUCION.md              # Guía completa de distribución
-
-│   ├── build_cliente.ps1            # Compilar cliente│   ├── DISTRIBUCION_RAPIDA.md       # Guía rápida
-
-│   ├── build_servidor.ps1           # Compilar servidor│   ├── NETWORK_FLOW.md              # Arquitectura de red
-
-│   └── install.ps1                  # Instalación dependencias│   ├── SECURITY_README.md           # Configuración de seguridad
-
-││   └── REORGANIZACION.md            # Historial de reorganización
-
-├── config/                          # Configuración│
-
-├── data/                            # Datos temporales├── 📂 config/                       # Configuración
-
-├── output/                          # Archivos salida (CSVs, logs)│   └── security_config.example.py   # Template de configuración de seguridad
-
-└── dist/                            # Ejecutables compilados│
-
-```├── 📂 data/                         # Datos de runtime (ignorado por Git)
-
-│   ├── specs.db                     # Base de datos SQLite
-
----│   └── .gitkeep
-
-│
-
-## Flujo de Datos├── requirements.txt                 # Dependencias Python
-
-├── .gitignore                       # Archivos ignorados por Git
-
-1. **Servidor Broadcast**: Anuncia IP via UDP → `255.255.255.255:37020`└── README.md                        # Este archivo
-
-2. **Cliente Discovery**: Escucha puerto 37020, detecta IP servidor```
-
-3. **Cliente Recolecta**: Ejecuta `informe()` → specs completas (WMI, psutil, dxdiag)
-
-4. **Cliente Envía**: TCP connect `<IP_SERVIDOR>:5255`, envía JSON## 🚀 Inicio Rápido
-
-5. **Servidor Persiste**: Guarda en SQLite `specs.db`
-
-6. **Monitor Verifica**: `monitor_tendencias.py` analiza RAM/CPU/Disco### Instalación
-
-7. **UI Actualiza**: `mainServidor.py` muestra estado con ping paralelo (batches de 50)
-
-```powershell
-
----# Clonar repositorio
-
-git clone https://github.com/Th3GaM3RCaT/specs-python.git
-
-## Compilación (PyInstaller)cd specs-python
-
-
-
-### Cliente# Ejecutar instalador automático
-
-```bash.\scripts\install.ps1
-
-cd scripts```
-
-.\build_cliente.ps1
-
-```### Ejecución
-
-Genera: `dist/SpecsCliente/SpecsCliente.exe`
-
-```powershell
-
-### Servidor# Iniciar servidor
-
-```bashpython src/servidor.py
-
-cd scripts
-
-.\build_servidor.ps1# Iniciar cliente (GUI)
-
-```python src/specs.py
-
-Genera: `dist/SpecsServidor/SpecsServidor.exe`
-
-# Iniciar cliente (modo tarea)
-
-**Importante**: Incluir `--add-data` para archivos SQL:python src/specs.py --tarea
-
-```bash```
-
-pyinstaller --onedir --noconsole servidor.py \
-
-    --add-data "sql_specs/statement/*.sql;sql_specs/statement"## Arquitectura del Sistema
+# Sistema de Inventario de Hardware en Red
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
+
+Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red, almacena la información en una base de datos SQLite y presenta una interfaz gráfica para visualización y gestión. **Filosofía: "Ejecutar y olvidarse"** - interfaz simple con 2 botones y modo tarea automático.
+
+---
+
+## 📑 Índice
+
+1. [Estructura del Proyecto](#-estructura-del-proyecto)
+2. [Inicio Rápido](#-inicio-rápido)
+   - [Instalación](#instalación)
+   - [Ejecución](#ejecución)
+3. [Arquitectura del Sistema](#arquitectura-del-sistema)
+   - [Cliente](#1-cliente-srcspecspy)
+   - [Servidor](#2-servidor-srcservidorpy--srclogicalogica_servidorpy)
+   - [Interfaz de Gestión](#3-interfaz-de-gestión-srcmainservidorpy)
+   - [Escaneo de Red](#4-escaneo-de-red-optimized_block_scannerpy)
+4. [Flujo de Trabajo Completo](#flujo-de-trabajo-completo)
+   - [Instalación Inicial](#instalación-inicial)
+   - [Proceso de Recopilación de Datos](#proceso-de-recopilación-de-datos)
+   - [Escaneo y Descubrimiento Masivo](#escaneo-y-descubrimiento-masivo)
+5. [Mapeo de Datos JSON → Base de Datos](#mapeo-de-datos-json--base-de-datos)
+6. [Funciones Principales](#funciones-principales)
+7. [Compilación (PyInstaller)](#compilación-pyinstaller)
+8. [Configuración de Puertos](#configuración-de-puertos)
+9. [Dependencias](#dependencias)
+10. [Notas de Implementación](#notas-de-implementación)
+11. [Mejoras Futuras](#mejoras-futuras)
+12. [Troubleshooting](#troubleshooting)
+13. [Contacto y Soporte](#contacto-y-soporte)
+14. [Licencia](#-licencia)
+
+---
+
+## 📁 Estructura del Proyecto
 
 ```
+specs-python/
+│
+├── 📂 src/                          # Código fuente principal
+│   ├── specs.py                     # Cliente (entry point)
+│   ├── servidor.py                  # Servidor (entry point)
+│   ├── all_specs.py                 # Inventario completo (entry point)
+│   │
+│   ├── 📂 logica/                   # Lógica de negocio
+│   │   ├── logica_specs.py          # Recolección de datos del sistema
+│   │   ├── logica_servidor.py       # Servidor TCP/UDP + procesamiento
+│   │   ├── logica_Hilo.py           # Threading helpers (Hilo, HiloConProgreso)
+│   │   └── mainServidor.py          # UI principal del servidor
+│   │
+│   ├── 📂 datos/                    # Módulos de recolección de datos
+│   │   ├── scan_ip_mac.py           # Escaneo de red + resolución MAC
+│   │   ├── get_ram.py               # Información de módulos RAM
+│   │   ├── informeDirectX.py        # Parseo de dxdiag
+│   │   ├── ipAddress.py             # Detección de IP local
+│   │   └── serialNumber.py          # Número de serie del equipo
+│   │
+│   ├── 📂 sql/                      # Capa de base de datos
+│   │   ├── consultas_sql.py         # Funciones de acceso a DB
+│   │   ├── specs.sql                # Schema de la base de datos
+│   │   └── 📂 statement/            # Queries SQL parametrizadas
+│   │       ├── Dispositivos-select.sql
+│   │       ├── activo-select.sql
+│   │       └── ... (otros queries)
+│   │
+│   └── 📂 ui/                       # Interfaces Qt Designer
+│       ├── specs_window.ui          # Diseño cliente
+│       ├── specs_window_ui.py       # Auto-generado por extensión
+│       ├── servidor_specs_window.ui
+│       ├── servidor_specs_window_ui.py
+│       ├── inventario.ui
+│       ├── inventario_ui.py
+│       ├── all_specs.ui
+│       └── all_specs_ui.py
+│
+├── 📂 scripts/                      # Scripts de utilidad
+│   ├── build_all.ps1                # Compilar con PyInstaller
+│   ├── sign_executables.ps1         # Firmar ejecutables
+│   ├── create_self_signed_cert.ps1  # Crear certificado para testing
+│   ├── install.ps1                  # Instalador desde código fuente
+│   └── optimized_block_scanner.py   # Escáner masivo de red
+│
+├── 📂 tests/                        # Tests automatizados
+│   └── test_connectivity.py         # Tests de conectividad cliente-servidor
+│
+├── 📂 docs/                         # Documentación
+│   ├── DISTRIBUCION.md              # Guía completa de distribución
+│   ├── DISTRIBUCION_RAPIDA.md       # Guía rápida
+│   ├── NETWORK_FLOW.md              # Arquitectura de red
+│   ├── SECURITY_README.md           # Configuración de seguridad
+│   └── REORGANIZACION.md            # Historial de reorganización
+│
+├── 📂 config/                       # Configuración
+│   └── security_config.example.py   # Template de configuración de seguridad
+│
+├── 📂 data/                         # Datos de runtime (ignorado por Git)
+│   ├── specs.db                     # Base de datos SQLite
+│   └── .gitkeep
+│
+├── run_cliente.py                   # Ejecutar cliente
+├── run_servidor.py                  # Ejecutar servidor
+├── requirements.txt                 # Dependencias Python
+├── .gitignore                       # Archivos ignorados por Git
+└── README.md                        # Este archivo
+```
+
+## 🚀 Inicio Rápido
+
+### Instalación
+
+```powershell
+# Clonar repositorio
+git clone https://github.com/Th3GaM3RCaT/specs-python.git
+cd specs-python
+
+# Ejecutar instalador automático
+.\scripts\install.ps1
+```
+
+### Ejecución
+
+```powershell
+# Iniciar servidor
+python run_servidor.py
+
+# Iniciar cliente (GUI - 2 botones: Enviar/Cancelar)
+python run_cliente.py
+
+# Iniciar cliente (modo tarea silencioso)
+python src\specs.py --tarea
+```
+
+## Arquitectura del Sistema
 
 ### 1. **Cliente (`src/specs.py`)**
+Aplicación que se ejecuta en cada equipo de la red para recopilar y enviar información.
 
----Aplicación que se ejecuta en cada equipo de la red para recopilar y enviar información.
-
-
-
-## Configuración de Puertos#### Modos de Ejecución:
-
-- **Modo GUI** (por defecto): `python specs.py`
-
-| Servicio | Puerto | Protocolo | Uso |  - Interfaz gráfica para ejecutar manualmente el informe
-
-|----------|--------|-----------|-----|  - Botón para enviar datos al servidor
-
-| Discovery | 37020 | UDP | Broadcast servidor |  
-
-| Datos | 5255 | TCP | Envío specs cliente → servidor |- **Modo Tarea**: `python specs.py --tarea`
-
+#### Modos de Ejecución:
+- **Modo GUI** (por defecto): `python run_cliente.py`
+  - Interfaz gráfica simple con 2 botones: Enviar y Cancelar
+  - Ejecuta manualmente el informe
+  
+- **Modo Tarea**: `python src\specs.py --tarea`
   - Se ejecuta en segundo plano
-
----  - Escucha broadcasts del servidor en puerto `37020`
-
+  - Escucha broadcasts del servidor en puerto `37020`
   - Responde automáticamente enviando sus datos
 
-## Dependencias Principales
-
 #### Datos Recopilados:
+- **Hardware**: Serial, Modelo, Procesador, GPU, RAM, Disco
+- **Sistema**: Nombre del equipo, Usuario, MAC Address, IP
+- **Software**: Aplicaciones instaladas, Estado de licencia Windows
+- **Diagnóstico**: Reporte DirectX completo (dxdiag)
 
-- **PySide6**: UI Qt (ventanas, tablas)- **Hardware**: Serial, Modelo, Procesador, GPU, RAM, Disco
-
-- **WMI**: Info hardware Windows- **Sistema**: Nombre del equipo, Usuario, MAC Address, IP
-
-- **psutil**: Stats sistema (CPU, RAM, disco)- **Software**: Aplicaciones instaladas, Estado de licencia Windows
-
-- **windows-tools**: Software instalado, servicios- **Diagnóstico**: Reporte DirectX completo (dxdiag)
-
-- **getmac**: Dirección MAC
-
-- **pywin32**: Integración Windows (dxdiag, registro)### 2. **Servidor (`servidor.py` + `logica_servidor.py`)**
-
+### 2. **Servidor (`src/servidor.py` + `src/logica/logica_servidor.py`)**
 Aplicación central que recibe datos de clientes y los almacena en la base de datos.
 
-Ver `requirements.txt` para lista completa.
-
 #### Componentes:
-
----- **Servidor TCP** (puerto `5255`): Recibe JSON de clientes
-
+- **Servidor TCP** (puerto `5255`): Recibe JSON de clientes
 - **Broadcast UDP** (puerto `37020`): Anuncia presencia en la red
-
-## Base de Datos (SQLite)- **Base de Datos**: SQLite (`specs.db`)
-
+- **Base de Datos**: SQLite (`specs.db`)
 - **Procesamiento**: Parsea JSON y DirectX, guarda en tablas normalizadas
 
-### Tablas Principales
-
-- `Dispositivos`: Info general (serial, nombre, IP, MAC)#### Tablas de la Base de Datos:
-
-- `almacenamiento`: Discos duros- `Dispositivos`: Información principal del equipo
-
-- `aplicaciones`: Software instalado- `activo`: Historial de estados (encendido/apagado)
-
-- `memoria`: Módulos RAM- `memoria`: Módulos RAM individuales
-
-- `activo`: Estado ping (1 registro por dispositivo)- `almacenamiento`: Discos y particiones
-
-- `tendencias_recursos`: Histórico para alertas inteligentes- `aplicaciones`: Software instalado
-
+#### Tablas de la Base de Datos:
+- `Dispositivos`: Información principal del equipo
+- `activo`: Estado actual (1 registro por dispositivo - encendido/apagado)
+- `memoria`: Módulos RAM individuales
+- `almacenamiento`: Discos y particiones
+- `aplicaciones`: Software instalado
 - `informacion_diagnostico`: Reportes completos (JSON + DirectX)
+- `registro_cambios`: Historial de modificaciones de hardware
+- `tendencias_recursos`: Histórico para alertas inteligentes (RAM/CPU/Disco)
 
-### Pattern DELETE + INSERT- `registro_cambios`: Historial de modificaciones de hardware
+### 3. **Interfaz de Gestión (`src/mainServidor.py`)**
+UI para visualizar y administrar el inventario de dispositivos.
 
-```python
-
-# Tabla activo: mantener 1 registro por dispositivo### 3. **Interfaz de Gestión (`mainServidor.py`)**
-
-cursor.execute("DELETE FROM activo WHERE Dispositivos_serial = ?", (serial,))UI para visualizar y administrar el inventario de dispositivos.
-
-cursor.execute("INSERT INTO activo (Dispositivos_serial, powerOn, date) VALUES (?, ?, ?)", ...)
-
-```#### Características:
-
+#### Características:
 - **Tabla de Dispositivos**: Muestra todos los equipos registrados
-
----  - Estado (Encendido/Apagado/Inactivo)
-
+  - Estado (Encendido/Apagado/Inactivo)
   - DTI, Serial, Usuario, Modelo
-
-## Seguridad (Opcional)  - Procesador, GPU, RAM, Disco
-
+  - Procesador, GPU, RAM, Disco
   - Estado de licencia, IP
-
-Si existe `security_config.py`:  
-
-- **Autenticación**: Token compartido válido por 5 minutos- **Filtros y Búsqueda**:
-
-- **Whitelist IP**: Subnets `10.100.0.0/16` - `10.119.0.0/16`  - Buscar por cualquier campo
-
-- **Rate Limiting**: Max 3 conexiones por IP  - Filtrar por: Activos, Inactivos, Encendidos, Apagados, Sin Licencia
-
-- **Buffer Limit**: 10 MB por mensaje  
-
+  
+- **Filtros y Búsqueda**:
+  - Buscar por cualquier campo
+  - Filtrar por: Activos, Inactivos, Encendidos, Apagados, Sin Licencia
+  
 - **Detalles por Dispositivo**:
-
----  - Diagnóstico completo
-
+  - Diagnóstico completo
   - Aplicaciones instaladas
-
-## Threading Pattern  - Detalles de almacenamiento
-
+  - Detalles de almacenamiento
   - Módulos de memoria RAM
-
-```python  - Historial de cambios
-
-from logica.logica_Hilo import Hilo, HiloConProgreso
+  - Historial de cambios
 
 ### 4. **Escaneo de Red (`optimized_block_scanner.py`)**
+Descubre dispositivos en la red para consultar su información.
 
-# Operaciones simples bloqueantes:Descubre dispositivos en la red para consultar su información.
-
-hilo = Hilo(funcion_pesada, arg1, arg2)
-
-hilo.terminado.connect(callback_exito)#### Funcionalidad:
-
-hilo.error.connect(callback_error)- Escanea rangos `10.100.0.0/16` a `10.119.0.0/16`
-
-hilo.start()- Usa probes SSDP/mDNS + ping-sweep asíncrono
-
+#### Funcionalidad:
+- Escanea rangos `10.100.0.0/16` a `10.119.0.0/16`
+- Usa probes SSDP/mDNS + ping-sweep asíncrono
 - Parsea tabla ARP para asociar IP ↔ MAC
+- Genera CSV: `optimized_scan_YYYYMMDD_HHMMSS.csv`
 
-# Operaciones con progreso en tiempo real:- Genera CSV: `optimized_scan_YYYYMMDD_HHMMSS.csv`
+## Flujo de Trabajo Completo
 
-hilo = HiloConProgreso(funcion_con_callback, arg1)
-
-hilo.progreso.connect(callback_progreso)  # Actualizaciones en vivo## Flujo de Trabajo Completo
-
-hilo.terminado.connect(callback_exito)
-
-hilo.start()### Instalación Inicial
-
-```
+### Instalación Inicial
 
 1. **Servidor**:
-
-**Razón**: Evita freeze de UI. `HiloConProgreso` permite emisión de progreso durante ejecución (ej: ping masivo de 386 dispositivos).   ```bash
-
+   ```bash
    # Crear base de datos
-
----   sqlite3 specs.db < sql_specs/specs.sql
-
+   sqlite3 specs.db < src/sql/specs.sql
    
+   # Ejecutar servidor
+   python run_servidor.py
+   ```
 
-## Troubleshooting   # Ejecutar servidor
+2. **Clientes**:
+   ```bash
+   # Modo manual (GUI)
+   python run_cliente.py
+   
+   # Modo automático (tarea programada)
+   python src\specs.py --tarea
+   ```
 
-   python servidor.py
+### Proceso de Recopilación de Datos
 
-### Cliente no encuentra servidor   ```
+```
+1. SERVIDOR anuncia su presencia
+   └─> Broadcast UDP: "servidor specs" → 255.255.255.255:37020
 
-- Verificar que servidor esté ejecutándose
-
-- Verificar firewall permite UDP puerto 370202. **Clientes**:
-
-- Verificar ambos en misma LAN/subnet   ```bash
-
-   # Modo manual
-
-### Error encoding (UnicodeEncodeError)   python specs.py
-
-- **NUNCA usar emojis en código Python** (Windows usa cp1252)   
-
-- Usar solo ASCII estándar: `[OK]`, `[ERROR]`, `*`, `+`, `-`   # Modo automático (tarea programada)
-
-   python specs.py --tarea
-
-### Tabla `activo` con duplicados   ```
-
-- Verificar pattern DELETE + INSERT se usa correctamente
-
-- Solo 1 registro por dispositivo (serial como key)### Proceso de Recopilación de Datos
-
-
-
-### Ping masivo lento```
-
-- Aumentar `batch_size` en `consultar_dispositivos_desde_csv()`1. SERVIDOR anuncia su presencia
-
-- Usar `asyncio` con batches de 50 (default correcto)   └─> Broadcast UDP: "servidor specs" → 255.255.255.255:37020
-
-
-
----2. CLIENTE detecta servidor
-
+2. CLIENTE detecta servidor
    └─> Escucha puerto 37020, extrae IP del sender
 
-## Licencia
-
 3. CLIENTE recopila información
-
-MIT License - Ver `LICENSE` para detalles   ├─> WMI: Serial, Modelo, Procesador, RAM
-
+   ├─> WMI: Serial, Modelo, Procesador, RAM
    ├─> psutil: CPU, Memoria, Disco, Red
-
----   ├─> dxdiag: GPU y diagnóstico completo
-
+   ├─> dxdiag: GPU y diagnóstico completo
    ├─> windows_tools: Aplicaciones instaladas
+   └─> slmgr: Estado de licencia Windows
 
-## Notas   └─> slmgr: Estado de licencia Windows
+4. CLIENTE envía datos al servidor
+   └─> TCP connect a SERVIDOR:5255, envía JSON completo
 
-
-
-- **Status Migración**: SQLite es única fuente de verdad (JSON deprecados)4. CLIENTE envía datos al servidor
-
-- **Grupo de Usuarios**: ~300 clientes, 2-3 administradores servidor   └─> TCP connect a SERVIDOR:5255, envía JSON completo
-
-- **Filosofía**: Simple, ejecutar y olvidarse
-
-- **Código Auto-documentado**: Comentarios inline suficientes5. SERVIDOR procesa y almacena
-
-- **Sin Auditorías Extensas**: App pequeña, uso interno   ├─> Parsea JSON + DirectX
-
+5. SERVIDOR procesa y almacena
+   ├─> Parsea JSON + DirectX
    ├─> Extrae datos según esquema de DB
    ├─> Inserta/actualiza en tablas:
    │   ├─ Dispositivos (info principal)

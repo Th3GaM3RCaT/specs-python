@@ -31,7 +31,7 @@ def obtener_segmento_local() -> str:
         return segmento
     except Exception as e:
         print(f"[ERROR] No se pudo obtener segmento local: {e}")
-        return None
+        return None # type: ignore
 
 
 def escanear_arp_local() -> List[Tuple[str, str]]:
