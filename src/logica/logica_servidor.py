@@ -32,8 +32,8 @@ try:
     )
     SECURITY_ENABLED = True
 except ImportError:
-    print("⚠️  WARNING: security_config.py no encontrado. Seguridad DESHABILITADA.")
-    print("   Crear security_config.py para habilitar autenticación y rate limiting.")
+    print("[WARN] WARNING: security_config.py no encontrado. Seguridad DESHABILITADA.")
+    print("   Crear security_config.py para habilitar autenticacion y rate limiting.")
     SECURITY_ENABLED = False
     MAX_BUFFER_SIZE = 10 * 1024 * 1024
     CONNECTION_TIMEOUT = 30
@@ -430,14 +430,14 @@ def main():
     # Iniciar anuncios periódicos en thread separado
     thread_anuncios = Thread(target=anunciar_ip_periodico, args=(10,), daemon=True)
     thread_anuncios.start()
-    print("✓ Thread de anuncios iniciado")
+    print("[OK] Thread de anuncios iniciado")
     
     # Servidor TCP principal
     server_socket = socket(AF_INET, SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen()
-    print(f"✓ Servidor TCP escuchando en {HOST}:{PORT}")
-    print(f"✓ Sistema listo - Esperando clientes...\n")
+    print(f"[OK] Servidor TCP escuchando en {HOST}:{PORT}")
+    print(f"[OK] Sistema listo - Esperando clientes...\n")
     
     try:
         while True:
@@ -446,10 +446,10 @@ def main():
             hilo = Thread(target=consultar_informacion, args=(conn, addr))
             hilo.start()
     except KeyboardInterrupt:
-        print("\n✓ Servidor detenido por usuario")
+        print("\n[OK] Servidor detenido por usuario")
         server_socket.close()
     except Exception as e:
-        print(f"❌ Error en servidor: {e}")
+        print(f"[ERROR] Error en servidor: {e}")
         server_socket.close()
 
 
@@ -471,9 +471,9 @@ def anunciar_ip():
     broadcast.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
     try:
         broadcast.sendto(b"servidor specs", ("255.255.255.255", discovery_port))
-        print(f"📡 Broadcast enviado a 255.255.255.255:{discovery_port}")
+        print(f"[BROADCAST] Enviado a 255.255.255.255:{discovery_port}")
     except Exception as e:
-        print(f"❌ Error enviando broadcast: {e}")
+        print(f"[ERROR] Error enviando broadcast: {e}")
     finally:
         broadcast.close()
 
@@ -498,7 +498,7 @@ def anunciar_ip_periodico(intervalo=None):
         except ImportError:
             intervalo = 10  # Fallback
     
-    print(f"🔄 Iniciando anuncios periódicos cada {intervalo} segundos...")
+    print(f"[BROADCAST] Iniciando anuncios periodicos cada {intervalo} segundos...")
     
     contador = 0
     try:
@@ -508,13 +508,13 @@ def anunciar_ip_periodico(intervalo=None):
             
             # Mostrar estadísticas cada 6 broadcasts
             if contador % 6 == 0:
-                print(f"📊 Broadcasts enviados: {contador} (clientes conectados: {len(clientes)})")
+                print(f"[STATS] Broadcasts enviados: {contador} (clientes conectados: {len(clientes)})")
             
             time.sleep(intervalo)
     except KeyboardInterrupt:
-        print("\n✓ Anuncios detenidos por usuario")
+        print("\n[OK] Anuncios detenidos por usuario")
     except Exception as e:
-        print(f"❌ Error en anuncios periódicos: {e}")
+        print(f"[ERROR] Error en anuncios periodicos: {e}")
 
 
 def abrir_json(position=0):
@@ -544,12 +544,27 @@ def cargar_ips_desde_csv(archivo_csv=None):
         Lista de tuplas (ip, mac)
     """
     if archivo_csv is None:
-        # Buscar el CSV más reciente
-        csvs = glob("discovered_devices.csv")
+        # Buscar el CSV en output/ o en raíz
+        from pathlib import Path
+        project_root = Path(__file__).parent.parent.parent  # Desde src/logica/ a raíz
+        
+        # Buscar en output/ primero
+        output_dir = project_root / "output"
+        csvs = []
+        if output_dir.exists():
+            csvs = list(output_dir.glob("discovered_devices.csv"))
+        
+        # Si no hay en output/, buscar en raíz
+        if not csvs:
+            csvs = list(project_root.glob("discovered_devices.csv"))
+        
         if not csvs:
             print("No se encontraron archivos CSV de escaneo")
+            print(f"  Buscado en: {output_dir}")
+            print(f"  Buscado en: {project_root}")
             return []
-        archivo_csv = max(csvs)  # El más reciente por nombre
+        
+        archivo_csv = max(csvs, key=lambda p: p.stat().st_mtime)  # El más reciente por fecha
         print(f"Usando archivo CSV: {archivo_csv}")
     
     ips_macs = []

@@ -38,11 +38,11 @@ def escuchar_broadcast(port=None, on_message=None):
                 try:
                     on_message(mensaje, addr)
                 except Exception as e:
-                    print(f"ÔØî Error en callback: {e}")
+                    print(f"[ERROR] Error en callback: {e}")
                     import traceback
                     traceback.print_exc()
     except KeyboardInterrupt:
-        print("\nÔ£ô Cliente detenido por usuario.")
+        print("\n[STOP] Cliente detenido por usuario.")
     except Exception as e:
         print(f"Error en escucha: {e}")
         
@@ -53,7 +53,7 @@ def escuchar_broadcast(port=None, on_message=None):
 if modo_tarea:
     # Modo tarea programada: escucha broadcasts y responde automáticamente
     print("=" * 70)
-    print("🔧 MODO TAREA ACTIVADO")
+    print("[MODO TAREA] Activado")
     print("=" * 70)
     print("Esperando solicitud del servidor...")
     print("Presiona Ctrl+C para detener\n")
@@ -85,21 +85,21 @@ if modo_tarea:
             
             ultima_ejecucion = tiempo_actual
             
-            print(f"­ƒôè Iniciando recopilaci├│n de especificaciones...")
-            print(f"ÔÅ░ Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"[START] Iniciando recopilacion de especificaciones...")
+            print(f"[TIME] Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
             try:
                 # 1. Ejecutar informe (recopilar datos del sistema)
-                print("\n1´©ÅÔâú Recopilando datos del sistema...")
+                print("\n1) Recopilando datos del sistema...")
                 lsp.informe()
-                print("   Ô£ô Datos recopilados exitosamente")
+                print("   [OK] Datos recopilados exitosamente")
                 
                 # 2. Enviar datos al servidor
-                print("\n2´©ÅÔâú Enviando datos al servidor...")
+                print("\n2) Enviando datos al servidor...")
                 lsp.enviar_a_servidor()
-                print("   Ô£ô Datos enviados al servidor")
+                print("   [OK] Datos enviados al servidor")
                 
-                print(f"\nÔ£à Proceso completado exitosamente")
+                print(f"\n[DONE] Proceso completado exitosamente")
                 print(f"{'='*70}\n")
                 
             except Exception as e:

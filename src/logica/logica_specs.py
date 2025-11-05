@@ -1,6 +1,6 @@
 # logica_specs.py
 from datetime import datetime
-from json import dump, dumps
+from json import dump, dumps, load
 from locale import getpreferredencoding
 from os import environ, name, path
 from pathlib import Path
@@ -74,7 +74,12 @@ def informe():
     """
     my_system = WMI().Win32_ComputerSystem()[0]
 
-    from ..datos.serialNumber import get_serial
+    # Import con fallback para PyInstaller
+    try:
+        from datos.serialNumber import get_serial
+    except ImportError:
+        from ..datos.serialNumber import get_serial
+    
     new["SerialNumber"] = get_serial()
     new["Manufacturer"] = my_system.Manufacturer
     new["Model"] = my_system.Model
@@ -108,8 +113,11 @@ def informe():
     new[f"Used virtual memory"] = f" {get_size(svmem.used)}"
     new[f"Percentage virtual memory"] = f" {svmem.percent}%"
 
-
-    from ..datos.get_ram import get_ram_info
+    # Import con fallback para PyInstaller
+    try:
+        from datos.get_ram import get_ram_info
+    except ImportError:
+        from ..datos.get_ram import get_ram_info
 
     for i, ram in enumerate(get_ram_info(), 1):
         new[f"--- Módulo RAM {i} ---"] = ""
@@ -205,11 +213,11 @@ def get_license_status(a=0):
         return None
 
 def enviar_a_servidor():
-    """Descubre servidor vía UDP broadcast y envía especificaciones vía TCP.
+    """Descubre servidor vía UDP broadcast o config manual y envía especificaciones vía TCP.
     
     Proceso:
-    1. Escucha broadcasts UDP en puerto 5255 (5 sec timeout)
-    2. Extrae IP del servidor desde el sender
+    1. Intenta cargar IP del servidor desde config/server_config.json (modo manual)
+    2. Si no existe config o use_discovery=true, escucha broadcasts UDP en puerto 37020
     3. Guarda info del servidor en servidor.json
     4. Lee dxdiag_output.txt y lo incluye en el JSON
     5. Detecta IP local del cliente
@@ -220,10 +228,14 @@ def enviar_a_servidor():
         None
     
     Raises:
-        timeout: Si no se encuentra servidor en 5 segundos
+        timeout: Si no se encuentra servidor en 5 segundos (modo discovery)
+        ConnectionError: Si no se puede conectar a IP configurada (modo manual)
     
     Note:
         Modifica el diccionario global `new` agregando dxdiag_output_txt y client_ip.
+        
+        Modo manual (SIN FIREWALL): Crear config/server_config.json con:
+        {"server_ip": "192.168.1.100", "server_port": 5255, "use_discovery": false}
     
     Security:
         Genera token de autenticación basado en timestamp y secreto compartido.
@@ -254,66 +266,97 @@ def enviar_a_servidor():
         tcp_port = 5255         # Fallback puerto TCP servidor
     
     txt_data = ""
-
-    # Escuchar broadcasts en puerto de discovery
-    s = socket(AF_INET, SOCK_DGRAM)
-    s.settimeout(5)
-    s.bind(("", discovery_port))
-    _print_status(f"🔍 Buscando servidor (escuchando broadcasts en puerto {discovery_port})...")
+    HOST = None
     
-
-    try:
-        # Descubrir servidor vía UDP broadcast
-        data, addr = s.recvfrom(1024)
-        HOST = addr[0]
-        s.close()  # Cerrar socket UDP
-        
-        _print_status(f"✓ Servidor encontrado: {HOST}")
-
-        # Directorio para archivos de salida
-        output_dir = Path(__file__).parent.parent.parent / "output"
-        output_dir.mkdir(exist_ok=True)
-        
-        # Guardar info del servidor localmente
-        with open(output_dir / "servidor.json", "w", encoding="utf-8") as f:
-            dump(addr, f, indent=4)
-
-        with open(output_dir / "dxdiag_output.txt", "r", encoding="cp1252") as f:
-            txt_data = f.read()
-        # Incluir el TXT dentro del JSON
-        new["dxdiag_output_txt"] = txt_data
-        
-        # Agregar IP del cliente
+    # MODO 1: Intentar cargar configuración manual (para casos sin permisos de Firewall)
+    config_path = Path(__file__).parent.parent.parent / "config" / "server_config.json"
+    use_discovery = True
+    
+    if config_path.exists():
         try:
-            # Obtener IP local conectando al servidor
-            temp_sock = socket(AF_INET, SOCK_DGRAM)
-            temp_sock.connect((HOST, tcp_port))
-            new["client_ip"] = temp_sock.getsockname()[0]
-            temp_sock.close()
-        except:
-            new["client_ip"] = "unknown"
-        
-        # SECURITY: Agregar token de autenticación
-        if security_available and generate_auth_token:
-            try:
-                new["auth_token"] = generate_auth_token()
-                _print_status("✓ Token de autenticación agregado")
-            except ValueError as e:
-                _print_status(f"⚠️  ERROR generando token: {e}")
-                _print_status("   Configurar SHARED_SECRET en security_config.py")
-                return  # No enviar sin autenticación si está habilitada
-        
-        # Conectar vía TCP y enviar todo
-        _print_status(f"🔌 Conectando al servidor {HOST}:{tcp_port}...")
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = load(f)
+                use_discovery = config.get("use_discovery", True)
+                
+                if not use_discovery:
+                    HOST = config.get("server_ip")
+                    tcp_port = config.get("server_port", 5255)
+                    _print_status(f"[CONFIG] Configuracion manual: Servidor en {HOST}:{tcp_port}")
+                    _print_status(f"[INFO] Modo discovery UDP deshabilitado (util sin permisos de Firewall)")
+        except Exception as e:
+            _print_status(f"[WARN] Error al leer configuracion: {e}, usando discovery UDP")
+            use_discovery = True
+    
+    # MODO 2: Discovery automático vía UDP broadcasts (requiere Firewall configurado)
+    if use_discovery or HOST is None:
+        try:
+            s = socket(AF_INET, SOCK_DGRAM)
+            s.settimeout(5)
+            s.bind(("", discovery_port))
+            _print_status(f"[DISCOVERY] Buscando servidor (escuchando broadcasts en puerto {discovery_port})...")
+            
+            # Descubrir servidor vía UDP broadcast
+            data, addr = s.recvfrom(1024)
+            HOST = addr[0]
+            s.close()  # Cerrar socket UDP
+            
+            _print_status(f"[OK] Servidor encontrado via broadcast: {HOST}")
+        except Exception as e:
+            if HOST is None:  # No teníamos IP de config y el broadcast falló
+                _print_status(f"[ERROR] Error en discovery UDP: {e}")
+                _print_status(f"[SOLUCION] Crea config/server_config.json con IP del servidor:")
+                _print_status(f'   {{"server_ip": "192.168.1.X", "server_port": 5255, "use_discovery": false}}')
+                raise
+            # Si teníamos IP de config, continuar con esa IP
+    
+    # Verificar que tenemos IP del servidor (por cualquier método)
+    if HOST is None:
+        _print_status("[ERROR] No se pudo determinar IP del servidor")
+        return
+
+    # Directorio para archivos de salida
+    output_dir = Path(__file__).parent.parent.parent / "output"
+    output_dir.mkdir(exist_ok=True)
+    
+    # Guardar info del servidor localmente
+    with open(output_dir / "servidor.json", "w", encoding="utf-8") as f:
+        dump({"server_ip": HOST, "server_port": tcp_port}, f, indent=4)
+
+    with open(output_dir / "dxdiag_output.txt", "r", encoding="cp1252") as f:
+        txt_data = f.read()
+    # Incluir el TXT dentro del JSON
+    new["dxdiag_output_txt"] = txt_data
+    
+    # Agregar IP del cliente
+    try:
+        # Obtener IP local conectando al servidor
+        temp_sock = socket(AF_INET, SOCK_DGRAM)
+        temp_sock.connect((HOST, tcp_port))
+        new["client_ip"] = temp_sock.getsockname()[0]
+        temp_sock.close()
+    except:
+        new["client_ip"] = "unknown"
+    
+    # SECURITY: Agregar token de autenticación
+    if security_available and generate_auth_token:
+        try:
+            new["auth_token"] = generate_auth_token()
+            _print_status("[OK] Token de autenticacion agregado")
+        except ValueError as e:
+            _print_status(f"[WARN] ERROR generando token: {e}")
+            _print_status("   Configurar SHARED_SECRET en security_config.py")
+            return  # No enviar sin autenticación si está habilitada
+    
+    # Conectar vía TCP y enviar todo
+    _print_status(f"[CONNECT] Conectando al servidor {HOST}:{tcp_port}...")
+    try:
         cliente = socket(AF_INET, SOCK_STREAM)
         cliente.connect((HOST, tcp_port))
         cliente.sendall(dumps(new).encode("utf-8"))
         cliente.close()
-        _print_status("✓ Datos enviados correctamente al servidor")
-
-    except timeout:
-        _print_status("❌ Timeout: No se encontró el servidor (esperó 5 segundos)")
-        _print_status("   Verificar que el servidor esté ejecutándose")
+        _print_status("[OK] Datos enviados correctamente al servidor")
+    except Exception as e:
+        _print_status(f"[ERROR] Error al enviar datos: {e}")
 
 
 def configurar_tarea(valor=1):
