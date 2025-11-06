@@ -5,7 +5,7 @@ from locale import getpreferredencoding
 from os import environ, name, path
 from pathlib import Path
 from re import IGNORECASE, search
-from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, socket, timeout
+from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, socket
 from subprocess import CREATE_NO_WINDOW, run
 import sys
 
@@ -405,3 +405,13 @@ def configurar_tarea(valor=1):
     
     # Ejecutar sin shell (seguro)
     run(cmd_args, creationflags=CREATE_NO_WINDOW, check=False)
+    
+    # si la consulta dice que se encontró la tarea, returna True
+    if valor == 1:        
+        # Leer salida de consulta
+        result = run(cmd_args, capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
+        output = result.stdout + result.stderr
+        if "No se encuentra el valor especificado" in output:
+            return False
+        else:
+            return True

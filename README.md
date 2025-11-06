@@ -202,7 +202,7 @@ Descubre dispositivos en la red para consultar su información.
 - Escanea rangos `10.100.0.0/16` a `10.119.0.0/16`
 - Usa probes SSDP/mDNS + ping-sweep asíncrono
 - Parsea tabla ARP para asociar IP ↔ MAC
-- Genera CSV: `optimized_scan_YYYYMMDD_HHMMSS.csv`
+- Genera CSV: `discovered_devices.csv`
 
 ## Flujo de Trabajo Completo
 
@@ -296,7 +296,7 @@ Descubre dispositivos en la red para consultar su información.
 | Campo DB | Fuente | Ubicación en JSON/DirectX |
 |----------|--------|---------------------------|
 | `serial` | JSON | `SerialNumber` |
-| `DTI` | Manual | - (se asigna manualmente) |
+| `DTI` | Manual | - (por implementar) |
 | `user` | JSON | `Name` |
 | `MAC` | JSON | `MAC Address` |
 | `model` | JSON | `Model` |
@@ -305,7 +305,7 @@ Descubre dispositivos en la red para consultar su información.
 | `RAM` | JSON | Suma de `Capacidad_GB` de módulos |
 | `disk` | DirectX | `Drive:`, `Model:`, `Total Space:` |
 | `license_status` | JSON | `License status` |
-| `ip` | JSON | `client_ip` |
+| `ip` | JSON | `client_ip` (en primera instancia, obtenida del escaneo)|
 | `activo` | Calculado | `True` si envía datos |
 
 ### Tabla `memoria`

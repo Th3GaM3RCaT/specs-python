@@ -61,6 +61,11 @@ if modo_tarea:
     from pathlib import Path
     from json import load
     
+    #consultar tarea, si no existe crear una nueva
+    if lsp.configurar_tarea():
+        lsp.configurar_tarea(0)
+        print("[MODO TAREA] Nueva tarea programada creada.")
+    
     # Verificar modo de operación (manual vs discovery)
     config_path = Path(__file__).parent.parent / "config" / "server_config.json"
     use_discovery = True
