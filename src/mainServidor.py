@@ -7,49 +7,97 @@ from ui.inventario_ui import Ui_MainWindow  # Importar el .ui convertido
 from sql.consultas_sql import cursor, abrir_consulta  # Funciones de DB
 from logica import logica_servidor as ls  # Importar lógica del servidor
 from logica.logica_Hilo import Hilo, HiloConProgreso  # Para operaciones en background
+from typing import Optional
 
 class InventarioWindow(QMainWindow, Ui_MainWindow):
+    # Atributos de instancia (anotaciones) para Pylance
+    from typing import Optional as _Opt  # solo para anotación local
+    server_mgr: _Opt[ls.ServerManager]
+    status_indicator: _Opt[QtWidgets.QFrame]
+    ip_to_row: dict
+
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        
+
         # Hilos para operaciones de red
         self.hilo_servidor = None
         self.hilo_escaneo = None
         self.hilo_consulta = None
-        
+
+        # Ruta del último CSV generado por Scanner (si aplica)
+        self._last_csv = None
+
+        # Facade server manager (puede ser None si no se pudo instanciar)
+        self.server_mgr = None
+
         # Mapa de IP a fila de tabla para actualización en tiempo real
         self.ip_to_row = {}
-        
+
         # Agregar emojis a los botones después de cargar la UI
         #self.agregar_iconos_texto()
-        
+
         # Conectar señales
         self.ui.tableDispositivos.itemSelectionChanged.connect(self.on_dispositivo_seleccionado)
         self.ui.lineEditBuscar.textChanged.connect(self.filtrar_dispositivos)
         self.ui.comboBoxFiltro.currentTextChanged.connect(self.aplicar_filtro)
         self.ui.btnActualizar.clicked.connect(self.iniciar_escaneo_completo)  # Cambio: ahora hace escaneo completo
-        
+
+        # Action de la barra de herramientas: detener/anunciar (si existen)
+        try:
+            action_detener = getattr(self.ui, 'actiondetener', None)
+            if action_detener:
+                action_detener.triggered.connect(self.on_action_detener)
+                try:
+                    action_detener.setEnabled(False)
+                except Exception:
+                    pass
+
+            # Si el .ui define un action para iniciar anuncios, conéctalo también
+            action_iniciar = getattr(self.ui, 'actioniniciar', None)
+            if action_iniciar:
+                action_iniciar.triggered.connect(self.on_action_iniciar)
+                # Inicialmente deshabilitar hasta servidor listo
+                try:
+                    action_iniciar.setEnabled(False)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Indicador tipo semáforo en la esquina derecha de la barra de estado
+        try:
+            self.status_indicator = QtWidgets.QFrame()
+            self.status_indicator.setFixedSize(14, 14)
+            self.status_indicator.setStyleSheet("background-color: gray; border-radius: 7px; border: 1px solid #666;")
+            self.status_indicator.setToolTip('Estado anuncios: desconocido')
+            try:
+                self.ui.statusbar.addPermanentWidget(self.status_indicator)
+            except Exception:
+                pass
+        except Exception:
+            self.status_indicator = None
+
         # Botones de acciones
         self.ui.btnVerDiagnostico.clicked.connect(self.ver_diagnostico)
         self.ui.btnVerAplicaciones.clicked.connect(self.ver_aplicaciones)
         self.ui.btnVerAlmacenamiento.clicked.connect(self.ver_almacenamiento)
         self.ui.btnVerMemoria.clicked.connect(self.ver_memoria)
         self.ui.btnVerHistorialCambios.clicked.connect(self.ver_historial)
-        
+
         # Botón de escaneo inicial (opcional)
         btn_escanear = getattr(self.ui, 'btnEscanear', None)
         if btn_escanear:
             btn_escanear.clicked.connect(self.iniciar_escaneo_completo)
         self.configurar_tabla()
-        
+
         # Deshabilitar botones hasta seleccionar dispositivo
         self.deshabilitar_botones_detalle()
-        
+
         # Cargar datos iniciales y verificar si hay datos
         self.cargar_datos_iniciales()
-        
+
         # Iniciar servidor en segundo plano
         self.iniciar_servidor()
     
@@ -77,13 +125,47 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
     
     def iniciar_servidor(self):
         """Inicia el servidor TCP en segundo plano para recibir datos de clientes."""
+        # Instanciar ServerManager como facade si está disponible
+        try:
+            self.server_mgr = ls.ServerManager()
+        except Exception:
+            self.server_mgr = None
+
         def iniciar_tcp():
-            ls.main()
-        
+            if self.server_mgr:
+                self.server_mgr.start_tcp_server()
+            else:
+                ls.main()
+
         self.hilo_servidor = Hilo(iniciar_tcp)
         self.hilo_servidor.start()
         self.ui.statusbar.showMessage(">> Servidor iniciado - Esperando conexiones de clientes", 3000)
         print("Servidor TCP iniciado en puerto 5255")
+
+        # Habilitar actiondetener si existe
+        try:
+            action_detener = getattr(self.ui, 'actiondetener', None)
+            if action_detener:
+                action_detener.setEnabled(True)
+            # Habilitar actioniniciar si existe (permite arrancar anuncios desde UI)
+            action_iniciar = getattr(self.ui, 'actioniniciar', None)
+            if action_iniciar:
+                try:
+                    action_iniciar.setEnabled(True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Actualizar indicador de estado en la barra (semaforo)
+        try:
+            if self.status_indicator is not None:
+                if self.server_mgr and getattr(self.server_mgr, '_announcer_running', False):
+                    self.set_status_indicator('green')
+                else:
+                    self.set_status_indicator('yellow')
+        except Exception:
+            pass
     
     def configurar_tabla(self):
         """Configura el ancho de columnas y otros ajustes de la tabla"""
@@ -346,6 +428,111 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.labelInfoDiscoValue.setText('-')
         self.ui.labelUltimoCambioFecha.setText('Fecha: -')
         self.ui.textEditUltimoCambio.setPlainText('Seleccione un dispositivo para ver los cambios...')
+
+    def on_action_detener(self):
+        """Handler para la action 'actiondetener' de la barra de herramientas.
+
+        Llama a `server_mgr.stop_periodic_announcements()` si existe y muestra feedback en la UI.
+        """
+        try:
+            if hasattr(self, 'server_mgr') and self.server_mgr:
+                self.server_mgr.stop_periodic_announcements()
+                self.ui.statusbar.showMessage('Anuncios periódicos detenidos', 3000)
+                print('Anuncios periódicos detenidos (actiondetener)')
+            else:
+                # Intentar detener el Event global usado por la ruta legacy
+                try:
+                    ls.ANNOUNCE_STOP_EVENT.set()
+                    self.ui.statusbar.showMessage('Anuncios periódicos detenidos (legacy)', 3000)
+                    print('Anuncios periódicos detenidos vía ANNOUNCE_STOP_EVENT (legacy)')
+                except Exception:
+                    self.ui.statusbar.showMessage('Servidor no inicializado o ServerManager no disponible', 3000)
+                    print('No hay ServerManager disponible para detener anuncios')
+        except Exception as e:
+            print(f'Error al detener anuncios periódicos: {e}')
+            self.ui.statusbar.showMessage(f'ERROR al detener anuncios: {e}', 5000)
+        finally:
+            try:
+                action_detener = getattr(self.ui, 'actiondetener', None)
+                if action_detener:
+                    action_detener.setEnabled(False)
+            except Exception:
+                pass
+            # Habilitar actioniniciar para permitir reiniciar anuncios
+            try:
+                action_iniciar = getattr(self.ui, 'actioniniciar', None)
+                if action_iniciar:
+                    action_iniciar.setEnabled(True)
+            except Exception:
+                pass
+            try:
+                if getattr(self, 'status_indicator', None):
+                    self.set_status_indicator('red')
+            except Exception:
+                pass
+
+    def on_action_iniciar(self):
+        """Handler para iniciar anuncios periódicos desde la UI.
+
+        Llama a `ServerManager.start_periodic_announcements()` y actualiza la UI.
+        """
+        try:
+            if not hasattr(self, 'server_mgr') or not self.server_mgr:
+                self.ui.statusbar.showMessage('ServerManager no inicializado', 3000)
+                print('No hay ServerManager para iniciar anuncios')
+                return
+
+            # Iniciar anuncios periódicos (por defecto intervalo 10s)
+            self.server_mgr.start_periodic_announcements()
+            self.ui.statusbar.showMessage('Anuncios periódicos iniciados', 3000)
+            print('Anuncios periódicos iniciados (actioniniciar)')
+
+            # Ajustar botones: iniciar deshabilitado, detener habilitado
+            try:
+                action_iniciar = getattr(self.ui, 'actioniniciar', None)
+                if action_iniciar:
+                    action_iniciar.setEnabled(False)
+            except Exception:
+                pass
+            try:
+                if getattr(self.ui, 'actiondetener', None):
+                    self.ui.actiondetener.setEnabled(True)
+            except Exception:
+                pass
+
+            # Semáforo a verde
+            try:
+                if getattr(self, 'status_indicator', None):
+                    self.set_status_indicator('green')
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f'Error al iniciar anuncios periódicos: {e}')
+            self.ui.statusbar.showMessage(f'ERROR al iniciar anuncios: {e}', 5000)
+
+    def set_status_indicator(self, state: str):
+        """Actualizar el semáforo de estado en la barra de estado.
+
+        state: 'green' | 'yellow' | 'red' | 'gray'
+        """
+        indicator = getattr(self, 'status_indicator', None)
+        if not indicator:
+            return
+
+        color_map = {
+            'green': ('#37b24d', 'Anuncios periódicos activos'),
+            'yellow': ('#f59f00', 'Servidor activo (anuncios no iniciados)'),
+            'red': ('#e03131', 'Anuncios detenidos'),
+            'gray': ('#9e9e9e', 'Estado desconocido')
+        }
+
+        color, tip = color_map.get(state, color_map['gray'])
+        try:
+            indicator.setStyleSheet(f"background-color: {color}; border-radius: 7px; border: 1px solid #666;")
+            indicator.setToolTip(tip)
+        except Exception:
+            pass
     
     def habilitar_botones_detalle(self):
         """Habilita botones cuando hay selección"""
@@ -651,24 +838,49 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         """
         self.ui.statusbar.showMessage("Paso 1/4: Iniciando escaneo de red...", 0)
         self.ui.btnActualizar.setEnabled(False)
-        
-        # Paso 1: Escanear red
+
+        # Si existe ServerManager, delegar todo el flujo a run_full_scan
+        if hasattr(self, 'server_mgr') and self.server_mgr:
+            def callback_full(callback_progreso=None):
+                try:
+                    print('\n=== Ejecutando run_full_scan via ServerManager ===')
+                    mgr = self.server_mgr
+                    if not mgr:
+                        return (0, 0, 0, None)
+                    inserted, activos, total, csv_path = mgr.run_full_scan(callback_progreso=callback_progreso)
+                    return (inserted, activos, total, csv_path)
+                except Exception as e:
+                    print(f'Exception en run_full_scan wrapper: {e}')
+                    import traceback
+                    traceback.print_exc()
+                    return (0, 0, 0, None)
+
+            # Usar HiloConProgreso para recibir actualizaciones en tiempo real
+            self.hilo_escaneo = HiloConProgreso(callback_full)
+            self.hilo_escaneo.progreso.connect(self.on_consulta_progreso)
+            self.hilo_escaneo.terminado.connect(self.on_full_scan_terminado)
+            self.hilo_escaneo.error.connect(self.on_escaneo_error)
+            self.hilo_escaneo.start()
+            return
+
+        # Fallback: flujo antiguo si no hay ServerManager
         self.ejecutar_escaneo_red()
     
     def ejecutar_escaneo_red(self):
         """Paso 1: Ejecuta optimized_block_scanner.py"""
         def callback_escaneo():
             try:
-                print("\n=== Ejecutando escaneo de red ===")
-                # Importar y ejecutar directamente en lugar de subprocess
-                from logica import optimized_block_scanner
-                
-                # Ejecutar la función main del scanner
-                optimized_block_scanner.main()
-                
-                print(">> Escaneo completado exitosamente")
+                print("\n=== Ejecutando escaneo de red (Scanner facade) ===")
+                scanner = ls.Scanner()
+
+                # Ejecutar el escaneo; run_scan devuelve la ruta al CSV generado
+                csv_path = scanner.run_scan()
+                print(f">> Escaneo completado, CSV: {csv_path}")
+
+                # Guardar ruta para uso posterior (poblar DB)
+                self._last_csv = csv_path
                 return True
-                
+
             except Exception as e:
                 print(f">> Excepción en escaneo: {e}")
                 import traceback
@@ -694,105 +906,46 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         """Error en Paso 1"""
         self.ui.statusbar.showMessage(f"ERROR: Error en escaneo: {error}", 5000)
         self.ui.btnActualizar.setEnabled(True)
+
+    def on_full_scan_terminado(self, resultado):
+        """Handler para cuando ServerManager.run_full_scan finaliza.
+
+        Resultado esperado: (inserted, activos, total, csv_path)
+        """
+        try:
+            inserted, activos, total, csv_path = resultado
+        except Exception:
+            # Si la forma no es la esperada, intentar desempaquetar parcialmente
+            try:
+                inserted = resultado[0]
+                activos = resultado[1] if len(resultado) > 1 else 0
+                total = resultado[2] if len(resultado) > 2 else 0
+            except Exception:
+                inserted = 0; activos = 0; total = 0
+
+        # Actualizar status y recargar vista (equivalente a finalizar_escaneo_completo)
+        self.ui.statusbar.showMessage(f">> Paso 4/4: Escaneo finalizado. Insertados: {inserted}. {activos}/{total} clientes respondieron", 5000)
+        # Recargar tabla
+        self.cargar_dispositivos()
+        self.ui.btnActualizar.setEnabled(True)
     
     def poblar_db_desde_csv(self):
         """Paso 2: Lee CSV y crea registros básicos en DB (solo IP/MAC)"""
         def callback_poblar():
             try:
-                print("\n=== Poblando DB desde CSV ===")
-                # Crear conexión thread-safe para este hilo
-                thread_conn = ls.sql.get_thread_safe_connection()
-                thread_cursor = thread_conn.cursor()
-                
-                # Cargar IPs del CSV
-                ips_macs = ls.cargar_ips_desde_csv()
-                
-                if not ips_macs:
-                    print("[!] No se encontraron IPs en el CSV")
-                    thread_conn.close()
-                    return 0
-                
-                print(f">> CSV cargado: {len(ips_macs)} entradas")
-                insertados = 0
-                actualizados = 0
-                sin_mac = 0
-                
-                for ip, mac in ips_macs:
-                    # Si tiene MAC, usarla como identificador
-                    # Si no tiene MAC, crear serial temporal basado en IP
-                    if mac:
-                        serial_temp = f"TEMP_{mac.replace(':', '')}"
-                        identificador = mac
-                        sql_check, params = ls.sql.abrir_consulta("Dispositivos-select.sql", {"MAC": mac})
-                    else:
-                        # Sin MAC - usar IP como identificador temporal
-                        serial_temp = f"TEMP_IP_{ip.replace('.', '_')}"
-                        identificador = None
-                        sin_mac += 1
-                        # Buscar por IP en lugar de MAC
-                        sql_check = "SELECT serial, MAC FROM Dispositivos WHERE ip = ?"
-                        params = (ip,)
-                    
-                    # Verificar si ya existe
-                    thread_cursor.execute(sql_check, params)
-                    existe = thread_cursor.fetchone()
-                    
-                    if not existe:
-                        # Insertar dispositivo básico
-                        # serial, DTI, user, MAC, model, processor, GPU, RAM, disk, license_status, ip, activo
-                        datos_basicos = (
-                            serial_temp,             # Serial temporal
-                            None,                    # DTI
-                            None,                    # user
-                            mac,                     # MAC (puede ser None)
-                            "Pendiente escaneo",     # model
-                            None,                    # processor
-                            None,                    # GPU
-                            0,                       # RAM
-                            None,                    # disk
-                            False,                   # license_status
-                            ip,                      # ip
-                            False                    # activo (aún no confirmado)
-                        )
-                        # Insertar usando la conexión del hilo
-                        thread_cursor.execute(
-                            """INSERT INTO Dispositivos (serial, DTI, user, MAC, model, processor, GPU, RAM, disk, license_status, ip, activo)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                            datos_basicos
-                        )
-                        insertados += 1
-                        mac_display = mac if mac else "sin MAC"
-                        print(f"  + Insertado: {ip} ({mac_display})")
-                    else:
-                        # Actualizar IP (y MAC si ahora la tiene)
-                        serial_existente = existe[0]
-                        mac_existente = existe[1]
-                        
-                        if mac and not mac_existente:
-                            # Ahora tiene MAC, actualizarla también
-                            thread_cursor.execute(
-                                "UPDATE Dispositivos SET ip = ?, MAC = ? WHERE serial = ?",
-                                (ip, mac, serial_existente)
-                            )
-                            print(f"  ↻ Actualizado IP+MAC: {ip} ({mac})")
-                        else:
-                            # Solo actualizar IP
-                            thread_cursor.execute(
-                                "UPDATE Dispositivos SET ip = ? WHERE serial = ?",
-                                (ip, serial_existente)
-                            )
-                            print(f"  ↻ Actualizado IP: {ip}")
-                        actualizados += 1
-                
-                thread_conn.commit()
-                thread_conn.close()
+                print("\n=== Poblando DB desde CSV (Scanner.parse_csv_to_db) ===")
+                csv_path = getattr(self, '_last_csv', None)
+                if csv_path:
+                    print(f">> Usando CSV generado por Scanner: {csv_path}")
+                else:
+                    print(">> Usando CSV por defecto (si existe)")
+
+                scanner = ls.Scanner()
+                inserted = scanner.parse_csv_to_db(csv_path)
+
                 print(f"\n>> Resumen poblado DB:")
-                print(f"   - Insertados: {insertados}")
-                print(f"   - Actualizados: {actualizados}")
-                print(f"   - Sin MAC (pendiente): {sin_mac}")
-                print(f"   - Total en DB: {insertados + actualizados}")
-                return insertados
-                
+                print(f"   - Insertados: {inserted}")
+                return inserted
             except Exception as e:
                 print(f">> Error poblando DB: {e}")
                 import traceback
@@ -822,7 +975,14 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 print("\n=== Anunciando servidor y consultando clientes ===")
                 # Anunciar presencia
                 print(">> Enviando broadcast...")
-                ls.anunciar_ip()
+                # Preferir el facade ServerManager si está disponible
+                try:
+                    if hasattr(self, 'server_mgr') and self.server_mgr:
+                        self.server_mgr.announce_once()
+                    else:
+                        ls.anunciar_ip()
+                except Exception:
+                    ls.anunciar_ip()
                 
                 # Esperar un poco para que clientes respondan
                 import time
@@ -830,7 +990,12 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 
                 # Consultar dispositivos desde CSV con callback de progreso
                 print(">> Consultando dispositivos...")
-                activos, total = ls.consultar_dispositivos_desde_csv(callback_progreso=callback_progreso)
+                # Usar Monitor facade para la consulta y progreso
+                try:
+                    monitor = ls.Monitor()
+                    activos, total = monitor.query_all_from_csv(None, callback_progreso)
+                except Exception:
+                    activos, total = ls.consultar_dispositivos_desde_csv(callback_progreso=callback_progreso)
                 
                 print(f">> Consulta completada: {activos}/{total} dispositivos respondieron")
                 return (activos, total)

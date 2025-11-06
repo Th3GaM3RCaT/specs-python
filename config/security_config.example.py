@@ -138,7 +138,7 @@ if __name__ == "__main__":
     
     # Test 2: Token verification
     try:
-        is_valid = verify_auth_token(token)
+        is_valid = verify_auth_token(token) # type: ignore
         print(f"✅ Token válido: {is_valid}")
     except Exception as e:
         print(f"❌ Error verificando token: {e}")

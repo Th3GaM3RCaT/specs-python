@@ -93,23 +93,3 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     app.exec()
-
-
-# # por comodidad
-# unificar aplicacion (mas lejos)
-# codigo para cambiar modo cliente/servidor           k
-
-
-# # pendientes
-
-# migrar a DB para comparar estado (conectado/desconectado) 
-# cambiar el formato de all_specs de csv a formato compatible con DB
-# 
-# terminar el modo tarea
-# proximamente migrar a DB (por parte del servidor, el cliente queda igual)
-# #
-
-# # sugerencias del equipo
-# presentar mapa de red estilo nmap o similares (opciones QGraphicsScene y NetworkX)
-# escaneo de red (listo) para enlistar por subred y descubrir intrusos
-# #

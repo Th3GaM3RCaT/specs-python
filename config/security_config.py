@@ -20,11 +20,11 @@ try:
     env_path = Path(__file__).parent.parent / ".env"
     if env_path.exists():
         load_dotenv(env_path)
-        print(f"✓ Configuración cargada desde {env_path}")
+        print(f"[OK] Configuración cargada desde {env_path}")
     else:
-        print(f"⚠️  Archivo .env no encontrado en {env_path}")
+        print(f"[WARN] Archivo .env no encontrado en {env_path}")
 except ImportError:
-    print("⚠️  python-dotenv no instalado. Ejecutar: pip install python-dotenv")
+    print("[WARN] python-dotenv no instalado. Ejecutar: pip install python-dotenv")
     print("    Usando valores por defecto (INSEGURO)")
 
 # Token compartido para autenticación cliente-servidor
@@ -165,15 +165,15 @@ def initialize_secret():
     if SHARED_SECRET == "CHANGE_ME_TO_RANDOM_TOKEN":
         new_secret = secrets.token_hex(32)
         print("=" * 70)
-        print("⚠️  IMPORTANTE: Secreto compartido NO configurado")
+        print("[WARN] IMPORTANTE: Secreto compartido NO configurado")
         print("=" * 70)
-        print(f"\nGenerar nuevo secreto aleatorio:")
+        print("\nGenerar nuevo secreto aleatorio:")
         print(f"\nSHARED_SECRET = \"{new_secret}\"")
         print(f"\n1. Copiar esta línea en security_config.py")
         print(f"2. Usar el MISMO secreto en servidor y todos los clientes")
         print(f"3. NO compartir este valor públicamente\n")
         print("=" * 70)
-        
+
         # No modificar automáticamente para evitar problemas
         raise ValueError("Secreto compartido no configurado. Ver mensaje arriba.")
     
@@ -183,4 +183,4 @@ def initialize_secret():
 # Validar configuración al importar
 if __name__ != "__main__":
     if SHARED_SECRET == "CHANGE_ME_TO_RANDOM_TOKEN":
-        print("⚠️  WARNING: Usando secreto por defecto. Ejecutar initialize_secret() para generar uno nuevo.")
+        print("[WARN] WARNING: Usando secreto por defecto. Ejecutar initialize_secret() para generar uno nuevo.")

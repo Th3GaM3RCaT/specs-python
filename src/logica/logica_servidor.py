@@ -2,7 +2,8 @@ from glob import glob
 from json import JSONDecodeError, dump, load, loads, dumps
 from socket import AF_INET, SO_BROADCAST, SOCK_DGRAM, SOCK_STREAM, SOL_SOCKET, socket
 from sys import argv
-from threading import Thread
+from threading import Thread, Event
+from pathlib import Path
 from datetime import datetime
 import csv
 import re
@@ -65,12 +66,289 @@ app = QApplication.instance()
 if app is None:
     app = QApplication(argv)
 
+# Event global usado para controlar la parada de los anuncios UDP.
+# Si se setea, cualquier bucle de anuncios que respete este Event debe parar.
+ANNOUNCE_STOP_EVENT = Event()
+
 # Almacenamiento de archivos JSON legacy (deprecado, SQLite es fuente de verdad)
 archivos_json = glob("*.json")
 # Lista de conexiones activas de clientes
 clientes = []
 # Contador de conexiones por IP (rate limiting)
 connections_per_ip = {}
+
+
+class ServerManager:
+    """Facade para manejar el servidor TCP y anuncios UDP.
+
+    Esta clase reusa las funciones existentes (`anunciar_ip`, `anunciar_ip_periodico`, `main`) y
+    expone una API orientada a objetos para la UI.
+    """
+    def __init__(self, host: Optional[str] = None, port: Optional[int] = None, discovery_port: Optional[int] = None):
+        self.host = host or HOST
+        self.port = port or PORT
+        self.discovery_port = discovery_port
+        self._announcer_thread = None
+        self._announcer_running = False
+        self._stop_event: Optional[Event] = None
+
+    def start_tcp_server(self):
+        """Inicia el servidor TCP (bloqueante) sin lanzar los anuncios periódicos automáticos.
+
+        Implementación propia para que la UI pueda controlar los anuncios mediante
+        `start_periodic_announcements` / `stop_periodic_announcements`. Reusa
+        `consultar_informacion` para atender cada conexión en un thread.
+        """
+        try:
+            # Crear socket y aceptar conexiones (similar a main() pero SIN iniciar
+            # el thread de anuncios periódicos para que la UI pueda controlarlo).
+            server_socket = socket(AF_INET, SOCK_STREAM)
+            server_socket.bind((self.host, self.port))
+            server_socket.listen()
+            print(f"[ServerManager] Servidor TCP escuchando en {self.host}:{self.port}")
+
+            # Loop de aceptación (bloqueante) - correrá en un hilo separado cuando lo invoque la UI
+            while True:
+                conn, addr = server_socket.accept()
+                clientes.append(conn)
+                hilo = Thread(target=consultar_informacion, args=(conn, addr), daemon=True)
+                hilo.start()
+        except Exception as e:
+            print(f"[ServerManager] Error al iniciar servidor TCP: {e}")
+            raise
+
+    def announce_once(self):
+        """Enviar un anuncio UDP único (wrapper)."""
+        anunciar_ip()
+
+    def start_periodic_announcements(self, intervalo: int = 10):
+        """Lanza los anuncios periódicos en un thread separado.
+
+        Implementación segura que usa `threading.Event` para permitir una parada
+        limpia desde otro hilo (ver `stop_periodic_announcements`). No modifica
+        la función global `anunciar_ip_periodico`; en su lugar ejecuta anuncios
+        puntuales en un bucle controlado por la bandera.
+        """
+        if self._announcer_running:
+            return
+        # Usar el Event global para que incluso threads legacy puedan detenerse
+        # cuando `stop_periodic_announcements` sea invocado.
+        global ANNOUNCE_STOP_EVENT
+        ANNOUNCE_STOP_EVENT.clear()
+        self._stop_event = ANNOUNCE_STOP_EVENT
+
+        def _run():
+            try:
+                self._announcer_running = True
+                # Bucle que envía un anuncio puntual y espera el intervalo
+                e = self._stop_event
+                if e is None:
+                    return
+                while not e.is_set():
+                    try:
+                        anunciar_ip()
+                    except Exception as ex:
+                        print(f"[ServerManager] Error en anunciar_ip: {ex}")
+
+                    # Esperar intervalo o salir inmediatamente si se setea la bandera
+                    # (Event.wait retorna True si se setea durante la espera)
+                    if e.wait(intervalo):
+                        break
+            finally:
+                self._announcer_running = False
+
+        t = Thread(target=_run, daemon=True)
+        t.start()
+        self._announcer_thread = t
+
+    def stop_periodic_announcements(self):
+        """Pide la parada limpia de los anuncios periódicos.
+
+        Señala la `Event` y espera un `join` corto para dar tiempo al hilo a limpiar.
+        Es seguro llamar incluso si no hay anuncios corriendo.
+        """
+        if not self._stop_event:
+            return
+
+        # Señalar al hilo que pare
+        self._stop_event.set()
+
+        # Intentar join corto para limpieza; no bloquear la UI indefinidamente
+        if self._announcer_thread:
+            try:
+                self._announcer_thread.join(timeout=2.0)
+            except Exception as e:
+                print(f"[ServerManager] Error al esperar al thread: {e}")
+
+        # Limpiar referencias
+        self._announcer_thread = None
+        self._stop_event = None
+        self._announcer_running = False
+
+    def run_full_scan(self, start: int = 100, end: int = 119, use_broadcast_probe: bool = True, callback_progreso=None):
+        """Ejecuta el flujo completo de escaneo → poblar DB → anunciar → consultar.
+
+        Args:
+            start,end: parámetros para el scanner (bloque de subnets)
+            use_broadcast_probe: pasar al scanner si corresponde
+            callback_progreso: función opcional que será llamada con diccionarios
+                de progreso durante la consulta de dispositivos. Debe aceptar un
+                único argumento (datos) como hace `consultar_dispositivos_desde_csv`.
+
+        Retorna:
+            Tupla (inserted, activos, total, csv_path)
+        """
+        inserted = 0
+        activos = 0
+        total = 0
+        csv_path = None
+
+        try:
+            # Paso 1: escanear red
+            scanner = Scanner()
+            csv_path = scanner.run_scan(start=start, end=end, use_broadcast_probe=use_broadcast_probe)
+
+            # Paso 2: poblar DB desde CSV
+            inserted = scanner.parse_csv_to_db(csv_path)
+
+            # Paso 3: anunciar una vez para que clientes detecten el servidor
+            try:
+                self.announce_once()
+            except Exception as e:
+                print(f"[ServerManager] Warning: anunciar_once falló: {e}")
+
+            # Pequeña espera para que clientes reaccionen
+            import time
+            time.sleep(2)
+
+            # Paso 4: consultar dispositivos desde CSV (Monitor) usando callback_progreso
+            monitor = Monitor()
+            activos, total = monitor.query_all_from_csv(csv_path, callback_progreso)
+
+        except Exception as e:
+            print(f"[ServerManager] Error en run_full_scan: {e}")
+            import traceback
+            traceback.print_exc()
+
+        return (inserted, activos, total, csv_path)
+
+
+class Monitor:
+    """Encapsula funciones de verificación/consulta de dispositivos.
+
+    Implementa métodos ligeros que reutilizan las funciones async ya existentes
+    (consultar_dispositivos_desde_csv). La UI puede instanciar esta clase y pasar callbacks.
+    """
+    def __init__(self, ping_batch_size: Optional[int] = None):
+        self.ping_batch_size = ping_batch_size
+
+    def query_all_from_csv(self, archivo_csv: Optional[str] = None, callback_progreso=None):
+        """Consulta todos los dispositivos listados en el CSV y retorna (activos, total).
+
+        Simple wrapper alrededor de `consultar_dispositivos_desde_csv`.
+        """
+        return consultar_dispositivos_desde_csv(archivo_csv, callback_progreso)
+
+
+class Scanner:
+    """Responsable de ejecutar el escaneo de red y poblar DB desde CSV.
+
+    Implementación mínima: wrapper para ejecutar el scanner externo si existe y
+    delegar el parseo/poblado a funciones existentes.
+    """
+    def __init__(self, scanner_script: Optional[str] = None):
+        self.scanner_script = scanner_script or str(Path(__file__).parent.parent.parent / 'optimized_block_scanner.py')
+
+    def run_scan(self, start: int = 100, end: int = 119, use_broadcast_probe: bool = True):
+        """Ejecuta el escaneo externo y devuelve la ruta al CSV generado.
+
+        Nota: esta función invoca el script externo y asume que genera
+        `discovered_devices.csv` en la raíz o en `output/`.
+        """
+        import subprocess
+        args = [self.scanner_script, '--start', str(start), '--end', str(end)]
+        if use_broadcast_probe:
+            args.append('--use-broadcast-probe')
+
+        try:
+            subprocess.run([ 'python', *args], check=True)
+        except Exception as e:
+            print(f"[Scanner] Error ejecutando scanner: {e}")
+            raise
+
+        # Determinar CSV generado
+        project_root = Path(__file__).parent.parent.parent
+        output_dir = project_root / 'output'
+        csv_path = output_dir / 'discovered_devices.csv'
+        if csv_path.exists():
+            return str(csv_path)
+
+        # Buscar en raíz
+        csv_root = project_root / 'discovered_devices.csv'
+        if csv_root.exists():
+            return str(csv_root)
+
+        raise FileNotFoundError('discovered_devices.csv no encontrado después del escaneo')
+
+    def parse_csv_to_db(self, csv_path: Optional[str]):
+        """Pobla la base de datos con entradas mínimas desde el CSV (IP/MAC).
+
+        Implementación mínima: si existe una función en `sql` para insertar, usarla.
+        """
+        # Obtener lista de IPs desde CSV
+        ips = cargar_ips_desde_csv(csv_path)
+        if not ips:
+            return 0
+
+        inserted = 0
+        # Usar conexión thread-safe para esta operación
+        try:
+            conn = sql.get_thread_safe_connection()
+            cur = conn.cursor()
+
+            for ip, mac in ips:
+                try:
+                    cur.execute("SELECT serial, MAC FROM Dispositivos WHERE ip = ?", (ip,))
+                    existe = cur.fetchone()
+
+                    if not existe:
+                        serial = f"TEMP_{mac.replace(':','').replace('-','')}" if mac else f"TEMP_{ip.replace('.','') }"
+                        datos_basicos = (
+                            serial,
+                            None,
+                            None,
+                            mac,
+                            "Pendiente escaneo",
+                            None,
+                            None,
+                            0,
+                            None,
+                            False,
+                            ip,
+                            False,
+                        )
+                        cur.execute(
+                            """INSERT INTO Dispositivos (serial, DTI, user, MAC, model, processor, GPU, RAM, disk, license_status, ip, activo)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            datos_basicos,
+                        )
+                        inserted += 1
+                    else:
+                        serial_existente = existe[0]
+                        mac_existente = existe[1]
+                        if mac and not mac_existente:
+                            cur.execute("UPDATE Dispositivos SET ip = ?, MAC = ? WHERE serial = ?", (ip, mac, serial_existente))
+                        else:
+                            cur.execute("UPDATE Dispositivos SET ip = ? WHERE serial = ?", (ip, serial_existente))
+                except Exception as e:
+                    print(f"[Scanner] Error poblando DB para {ip}: {e}")
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[Scanner] Error con conexión DB en parse_csv_to_db: {e}")
+
+        return inserted
 
 
 def parsear_datos_dispositivo(json_data):
@@ -569,15 +847,22 @@ def anunciar_ip_periodico(intervalo=None):
     
     contador = 0
     try:
-        while True:
+        # Usar EVENT global para permitir parada desde ServerManager u otra ruta
+        global ANNOUNCE_STOP_EVENT
+        while not ANNOUNCE_STOP_EVENT.is_set():
             anunciar_ip()
             contador += 1
-            
+
             # Mostrar estadísticas cada 6 broadcasts
             if contador % 6 == 0:
                 print(f"[STATS] Broadcasts enviados: {contador} (clientes conectados: {len(clientes)})")
-            
-            time.sleep(intervalo)
+
+            # Esperar el intervalo o salir si se setea el Event
+            if ANNOUNCE_STOP_EVENT.wait(intervalo):
+                break
+
+        if ANNOUNCE_STOP_EVENT.is_set():
+            print("\n[OK] Anuncios detenidos (Event)\n")
     except KeyboardInterrupt:
         print("\n[OK] Anuncios detenidos por usuario")
     except Exception as e:

@@ -620,7 +620,7 @@ QStatusBar {
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuArchivo">
@@ -645,6 +645,7 @@ QStatusBar {
     </property>
     <addaction name="actionConfiguracion"/>
     <addaction name="actionBackupBD"/>
+    <addaction name="actiondetener"/>
    </widget>
    <widget class="QMenu" name="menuAyuda">
     <property name="title">
@@ -701,6 +702,14 @@ QStatusBar {
   <action name="actionManual">
    <property name="text">
     <string>Manual de Usuario</string>
+   </property>
+  </action>
+  <action name="actiondetener">
+   <property name="text">
+    <string>Detener anuncios (broadcast)</string>
+   </property>
+   <property name="toolTip">
+    <string>Para reducir ruido en la red, ahorrar recursos, prevenir problemas de seguridad/duplicación y permitir tareas de mantenimiento o apagado ordenado</string>
    </property>
   </action>
  </widget>

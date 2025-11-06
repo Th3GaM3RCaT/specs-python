@@ -1,3 +1,4 @@
+#type: ignore
 """
 Integración del Monitor de Tendencias en logica_servidor.py
 ==========================================================
@@ -24,7 +25,7 @@ def consultar_informacion(conn, addr):
     # ... código existente que recibe y guarda datos ...
     
     # Después de insertar en DB exitosamente:
-    serial = json_data.get("SerialNumber", "UNKNOWN")
+    serial = json_data.get("SerialNumber", "UNKNOWN") 
     
     # AGREGAR ESTAS LÍNEAS:
     # Verificar tendencias de recursos
