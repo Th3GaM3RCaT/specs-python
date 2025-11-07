@@ -9,9 +9,9 @@ import csv
 import re
 
 from PySide6.QtWidgets import QApplication
-import datos
 from logica.logica_Hilo import Hilo
 from sql import ejecutar_sql as sql
+from logica import optimized_block_scanner as scan
 
 # Importar configuración de seguridad
 from typing import Callable, Optional
@@ -260,7 +260,7 @@ class Scanner:
         Nota: esta función importa el escaneo y asume que genera
         `discovered_devices.csv` en la raíz o en `output/`.
         """
-        import src.datos.scan_ip_mac as scan
+        
         scan.main()
         # Determinar CSV generado
         project_root = Path(__file__).parent.parent.parent

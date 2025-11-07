@@ -21,7 +21,7 @@ def inicializar_db():
     if hasattr(sys, "_MEIPASS"):
         db_path = "specs.db"  # En empaquetado, junto al ejecutable
     else:
-        db_path = Path(__file__).parent.parent.parent / "data" / "specs.db"
+        db_path = Path(__file__).parent.parent.parent / "specs.db"
         db_path.parent.mkdir(exist_ok=True)
     
     try:

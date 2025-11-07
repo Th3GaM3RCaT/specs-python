@@ -7,7 +7,7 @@ Usa probes broadcast/multicast (SSDP/mDNS) por bloque y fallback a ping-sweep ch
 si no hay respuestas. Luego asocia MACs leyendo la tabla ARP.
 """
 import time
-
+start_time = time.time()
 
 import asyncio
 import ipaddress
@@ -522,7 +522,8 @@ async def force_arp_population(ips):
             proc = await asyncio.create_subprocess_exec(
                 "ping", "-n", "1", "-w", "500", ip,
                 stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL
+                stderr=asyncio.subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
             await proc.wait()
         except Exception:
@@ -771,3 +772,8 @@ def main():
             os.remove(temp_csv)
 
 
+if __name__ == "__main__":
+    main()
+
+end_time = time.time()
+print(f"\n>> Escaneo completado en {end_time - start_time:.2f} segundos.")

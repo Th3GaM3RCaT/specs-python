@@ -5,6 +5,7 @@ import sys
 import asyncio
 from ui.inventario_ui import Ui_MainWindow  # Importar el .ui convertido
 from sql.ejecutar_sql import cursor, abrir_consulta  # Funciones de DB
+import sql.ejecutar_sql as sql_mod
 from logica import logica_servidor as ls  # Importar lógica del servidor
 from logica.logica_Hilo import Hilo, HiloConProgreso  # Para operaciones en background
 from typing import Optional
@@ -125,6 +126,17 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
     
     def iniciar_servidor(self):
         """Inicia el servidor TCP en segundo plano para recibir datos de clientes."""
+        # Asegurar que el schema de la DB existe (útil en la primera ejecución o en ejecutable)
+        try:
+            try:
+                sql_mod.inicializar_db()
+            except Exception as e:
+                # No cortar el arranque si la inicialización falla; mostrarse en consola para diagnóstico
+                print(f"[WARN] Inicialización de DB falló: {e}")
+        except Exception:
+            # Si importar el módulo falla por alguna razón, seguir adelante
+            pass
+
         # Instanciar ServerManager como facade si está disponible
         try:
             self.server_mgr = ls.ServerManager()
