@@ -22,12 +22,29 @@ import sys
 import select
 import time
 import os
-from datetime import datetime
 from pathlib import Path
 from itertools import islice
 from logica.ping_utils import ping_host
 import platform
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# ------------------ SUBPROCESS HELPER (Windows-safe) ------------------
+def _run_hidden(cmd, **kwargs):
+    """
+    Ejecuta subprocess.run() ocultando ventanas CMD en Windows.
+    
+    Args:
+        cmd: Lista de comandos (ej: ["ping", "-n", "1", "8.8.8.8"])
+        **kwargs: Argumentos adicionales para subprocess.run()
+    
+    Returns:
+        subprocess.CompletedProcess
+    """
+    if platform.system() == "Windows":
+        # CREATE_NO_WINDOW = 0x08000000
+        kwargs.setdefault('creationflags', 0x08000000)
+    
+    return subprocess.run(cmd, **kwargs)
 
 # ------------------ DEFAULTS ------------------
 DEFAULT_START = 100
@@ -256,7 +273,7 @@ async def ping_sweep_chunked(network, chunk_size, per_host_timeout, per_subnet_t
 def parse_arp_table(): # type: ignore
     entries = []
     try:
-        proc = subprocess.run(["ip", "neigh"], capture_output=True, text=True, check=False)
+        proc = _run_hidden(["ip", "neigh"], capture_output=True, text=True, check=False)
         out = (proc.stdout or "") + (proc.stderr or "")
         if out.strip():
             for line in out.splitlines():
@@ -269,7 +286,7 @@ def parse_arp_table(): # type: ignore
         pass
     # fallback arp -a
     try:
-        proc2 = subprocess.run(["arp", "-a"], capture_output=True, text=True, check=False)
+        proc2 = _run_hidden(["arp", "-a"], capture_output=True, text=True, check=False)
         out2 = (proc2.stdout or "") + (proc2.stderr or "")
         for line in out2.splitlines():
             m2 = re.search(r'\((?P<ip>\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
@@ -326,13 +343,28 @@ def probe_block(segment_net, iface_ip, timeout, use_broadcast):
     return set(mdns)
 
 # ------------------ MAIN FLOW ------------------
-async def scan_blocks(start, end, chunk_size, per_host_timeout, per_subnet_timeout, concurrency, probe_timeout, use_broadcast_probe):
+async def scan_blocks(start, end, chunk_size, per_host_timeout, per_subnet_timeout, concurrency, probe_timeout, use_broadcast_probe, callback_progreso=None):
     local_super = get_local_supernet()
     all_alive = set()
     loop = asyncio.get_event_loop()
 
-    for second in range(start, end + 1):
+    total_segments = end - start + 1
+
+    for idx, second in enumerate(range(start, end + 1), start=1):
         print(f"\n--- Segment 10.{second}.x.x ---")
+        
+        # Emitir progreso al callback si existe
+        if callback_progreso:
+            try:
+                callback_progreso({
+                    'tipo': 'segmento',
+                    'segmento_actual': second,
+                    'segmento_index': idx,
+                    'segmentos_totales': total_segments,
+                    'mensaje': f"Escaneando segmento 10.{second}.x.x ({idx}/{total_segments})"
+                })
+            except Exception as e:
+                print(f"[WARN] Error emitiendo progreso: {e}")
         blks = blocks_for_segment(second)
         # dedupe blocks
         seen = set()
@@ -357,8 +389,23 @@ async def scan_blocks(start, end, chunk_size, per_host_timeout, per_subnet_timeo
                 all_alive.add(tip)
 
         # 2) For each block: probe by broadcast/multicast first (cheap)
-        for b in final_blocks:
+        for block_idx, b in enumerate(final_blocks, start=1):
             print(f"  -> block {b}")
+            
+            # Emitir progreso de bloque
+            if callback_progreso:
+                try:
+                    callback_progreso({
+                        'tipo': 'bloque',
+                        'segmento_actual': second,
+                        'bloque_actual': str(b),
+                        'bloque_index': block_idx,
+                        'bloques_totales': len(final_blocks),
+                        'mensaje': f"10.{second}.x.x - Bloque {block_idx}/{len(final_blocks)}: {b}"
+                    })
+                except Exception:
+                    pass
+            
             found_ips = set()
             if use_broadcast_probe:
                 try:
@@ -529,7 +576,7 @@ def is_computer_mac(mac):
 def parse_arp_table_raw_fallback():
     entries = []
     try:
-        proc = subprocess.run(["ip", "neigh"], capture_output=True, text=True, check=False)
+        proc = _run_hidden(["ip", "neigh"], capture_output=True, text=True, check=False)
         out = (proc.stdout or "") + (proc.stderr or "")
         if out.strip():
             for line in out.splitlines():
@@ -541,7 +588,7 @@ def parse_arp_table_raw_fallback():
     except Exception:
         pass
     try:
-        proc2 = subprocess.run(["arp", "-a"], capture_output=True, text=True, check=False)
+        proc2 = _run_hidden(["arp", "-a"], capture_output=True, text=True, check=False)
         out2 = (proc2.stdout or "") + (proc2.stderr or "")
         for line in out2.splitlines():
             m2 = re.search(r'\((?P<ip>\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
@@ -714,6 +761,8 @@ def _ping_ip_sync(ip: str, timeout: float = 1.0) -> bool:
     Ping síncrono para uso en ThreadPoolExecutor.
     Retorna True si el host responde.
     
+    IMPORTANTE: Oculta ventanas CMD en Windows usando _run_hidden().
+    
     Args:
         ip: Dirección IP a hacer ping
         timeout: Timeout en segundos (acepta float)
@@ -728,8 +777,9 @@ def _ping_ip_sync(ip: str, timeout: float = 1.0) -> bool:
         cmd = ["ping", "-c", "1", "-t", "1", ip]
     else:
         cmd = ["ping", "-c", "1", "-W", str(int(max(1, timeout))), ip]
+    
     try:
-        proc = subprocess.run(
+        proc = _run_hidden(
             cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -745,7 +795,7 @@ def parse_arp_table_raw():
     Retorna lista de tuplas: [(ip, mac), ...]
     """
     try:
-        proc = subprocess.run(["arp", "-a"], capture_output=True, text=True, check=False)
+        proc = _run_hidden(["arp", "-a"], capture_output=True, text=True, check=False)
         out = proc.stdout + proc.stderr
     except Exception:
         out = ""
@@ -781,7 +831,14 @@ def parse_arp_table_raw():
     return entries
 
 # ------------------ ENTRYPOINT ------------------
-def main():
+def main(callback_progreso=None):
+    """
+    Entry point principal del scanner.
+    
+    Args:
+        callback_progreso: Función opcional que recibe diccionarios con información de progreso.
+                          Ejemplo: {'tipo': 'segmento', 'segmento_actual': 100, 'mensaje': '...'}
+    """
     args = parse_args()
     try:
         local_super = get_local_supernet()
@@ -799,11 +856,24 @@ def main():
                                                     per_subnet_timeout=args.per_subnet_timeout,
                                                     concurrency=args.concurrency,
                                                     probe_timeout=args.probe_timeout,
-                                                    use_broadcast_probe=args.use_broadcast_probe))
+                                                    use_broadcast_probe=args.use_broadcast_probe,
+                                                    callback_progreso=callback_progreso))
     finally:
         loop.close()
 
     print(f"\nTotal alive IPs found: {len(alive)} (examples: {alive[:20]})")
+    
+    # Notificar finalización de escaneo
+    if callback_progreso:
+        try:
+            callback_progreso({
+                'tipo': 'fase',
+                'fase': 'escaneo_completado',
+                'mensaje': f"Escaneo completado: {len(alive)} IPs activas encontradas"
+            })
+        except Exception:
+            pass
+    
     merged = merge_with_arp(alive)
     
     # Estadísticas de filtrado
@@ -811,6 +881,17 @@ def main():
     if filtered_count > 0:
         print(f"[FILTRADO] Excluidas {filtered_count} IPs de equipos de red (routers, switches, APs)")
         print(f"[RESULTADO] {len(merged)} IPs de computadoras para CSV")
+    
+    # Notificar filtrado
+    if callback_progreso:
+        try:
+            callback_progreso({
+                'tipo': 'fase',
+                'fase': 'filtrado_completado',
+                'mensaje': f"Filtrado: {len(merged)} computadoras ({filtered_count} equipos de red excluidos)"
+            })
+        except Exception:
+            pass
     
     # --- Guardar IPs descubiertas en CSV temporal (sin MACs todavía) ---
     temp_csv = "temp_scan.csv"
@@ -839,13 +920,33 @@ def main():
                            key=lambda item: tuple(map(int, item[0].split('.'))))
 
     # 4. Escribir CSV temporal con todas las IPs
+    if callback_progreso:
+        try:
+            callback_progreso({
+                'tipo': 'fase',
+                'fase': 'guardando_csv',
+                'mensaje': f"Guardando CSV con {len(sorted_devices)} dispositivos..."
+            })
+        except Exception:
+            pass
+    
     with open(temp_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["ip", "mac"])
         for ip, mac in sorted_devices:
             writer.writerow([ip, mac])
     
-    print(f"\n>> Poblando MACs con get_mac.py (rápido: ~3.6s)...")
+    print(f"\n>> Poblando MACs con get_mac.py (rapido: ~3.6s)...")
+    
+    if callback_progreso:
+        try:
+            callback_progreso({
+                'tipo': 'fase',
+                'fase': 'poblando_macs',
+                'mensaje': "Poblando direcciones MAC desde tabla ARP..."
+            })
+        except Exception:
+            pass
     
     # 5. Usar update_csv_with_macs para poblar MACs eficientemente
     try:

@@ -197,8 +197,13 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.tableDispositivos.setColumnWidth(8, 85)   # Licencia
         # IP se estira automáticamente
     
-    def cargar_dispositivos(self):
-        """Carga los dispositivos desde la base de datos y verifica estado con ping"""
+    def cargar_dispositivos(self, verificar_ping=True):
+        """Carga los dispositivos desde la base de datos y opcionalmente verifica estado con ping
+        
+        Args:
+            verificar_ping (bool): Si False, carga estados desde tabla 'activo' sin hacer ping.
+                                   Usar False después de escaneo completo para no sobrescribir estados.
+        """
         # Limpiar tabla
         self.ui.tableDispositivos.setRowCount(0)
         
@@ -215,7 +220,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             # Limpiar mapa ip_to_row
             self.ip_to_row.clear()
             
-            # Llenar tabla primero con estado "Verificando..."
+            # Llenar tabla primero con estado "Verificando..." o desde DB
             for dispositivo in dispositivos:
                 row_position = self.ui.tableDispositivos.rowCount()
                 self.ui.tableDispositivos.insertRow(row_position)
@@ -227,9 +232,34 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 if ip:
                     self.ip_to_row[ip] = row_position
                 
-                # Columna Estado (inicialmente "Verificando...")
-                estado_item = QtWidgets.QTableWidgetItem("[...]")
-                estado_item.setBackground(QBrush(QColor(255, 255, 200)))
+                # Columna Estado
+                if verificar_ping:
+                    # Inicialmente "Verificando..." (haremos ping)
+                    estado_item = QtWidgets.QTableWidgetItem("[...]")
+                    estado_item.setBackground(QBrush(QColor(255, 255, 200)))
+                else:
+                    # Cargar estado desde tabla 'activo' (ya verificado por escaneo completo)
+                    try:
+                        sql_activo = "SELECT powerOn FROM activo WHERE Dispositivos_serial = ? ORDER BY date DESC LIMIT 1"
+                        cursor.execute(sql_activo, (serial,))
+                        estado_db = cursor.fetchone()
+                        
+                        if estado_db:
+                            es_activo = bool(estado_db[0])
+                            if es_activo:
+                                estado_item = QtWidgets.QTableWidgetItem("Encendido")
+                                estado_item.setBackground(QBrush(QColor(150, 255, 150)))
+                            else:
+                                estado_item = QtWidgets.QTableWidgetItem("Apagado")
+                                estado_item.setBackground(QBrush(QColor(255, 200, 200)))
+                        else:
+                            estado_item = QtWidgets.QTableWidgetItem("[?]")
+                            estado_item.setBackground(QBrush(QColor(200, 200, 200)))
+                    except Exception as e:
+                        print(f"Error cargando estado para {serial}: {e}")
+                        estado_item = QtWidgets.QTableWidgetItem("[?]")
+                        estado_item.setBackground(QBrush(QColor(200, 200, 200)))
+                
                 self.ui.tableDispositivos.setItem(row_position, 0, estado_item)
                 
                 # Resto de columnas
@@ -252,8 +282,11 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             # Actualizar contador
             self.ui.labelContador.setText(f"Mostrando {len(dispositivos)} dispositivos")
             
-            # Verificar estado de conexión en background
-            self.verificar_estados_conexion(dispositivos)
+            # Verificar estado de conexión en background SOLO si verificar_ping=True
+            if verificar_ping:
+                self.verificar_estados_conexion(dispositivos)
+            else:
+                print(f">> Estados cargados desde DB (sin ping) - {len(dispositivos)} dispositivos")
             
         except Exception as e:
             print(f"Error consultando base de datos: {e}")
@@ -327,12 +360,43 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         print(">> Verificando estado de conexión de dispositivos...")
     
     def on_consulta_progreso(self, datos):
-        """Callback para actualizar estado en tiempo real durante consulta de dispositivos"""
+        """Callback para actualizar estado en tiempo real durante escaneo y consulta de dispositivos"""
         try:
+            # Detectar tipo de progreso
+            tipo = datos.get('tipo')
+            
+            # Progreso del SCANNER (escaneo de red)
+            if tipo == 'segmento':
+                segmento = datos.get('segmento_actual')
+                idx = datos.get('segmento_index')
+                total_seg = datos.get('segmentos_totales')
+                mensaje = datos.get('mensaje', '')
+                self.ui.statusbar.showMessage(f"[ESCANEO {idx}/{total_seg}] {mensaje}", 0)
+                print(f">> {mensaje}")
+                return
+            
+            elif tipo == 'bloque':
+                mensaje = datos.get('mensaje', '')
+                self.ui.statusbar.showMessage(f"[ESCANEO] {mensaje}", 0)
+                # No imprimir en consola para evitar spam
+                return
+            
+            elif tipo == 'fase':
+                fase = datos.get('fase')
+                mensaje = datos.get('mensaje', '')
+                self.ui.statusbar.showMessage(f"[{fase.upper()}] {mensaje}", 0)
+                print(f">> {mensaje}")
+                return
+            
+            # Progreso de CONSULTA de dispositivos (ping + solicitud de datos)
             ip = datos.get('ip')
             activo = datos.get('activo')
             index = datos.get('index')
             total = datos.get('total')
+            
+            # Actualizar barra de estado con progreso de consulta
+            if index is not None and total is not None:
+                self.ui.statusbar.showMessage(f"[CONSULTA {index}/{total}] Verificando: {ip or '?'}", 0)
             
             # Actualizar tabla si tenemos el mapeo
             if ip and ip in self.ip_to_row:
@@ -347,8 +411,8 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                         estado_item.setText("Apagado")
                         estado_item.setBackground(QBrush(QColor(255, 200, 200)))
             
-            # Mostrar progreso en consola
-            if index is not None and total is not None:
+            # Mostrar progreso en consola (solo cada 10 dispositivos para no saturar)
+            if index is not None and total is not None and (index % 10 == 0 or index == total):
                 print(f">> Consultando dispositivo {index}/{total}: {ip} - {'Encendido' if activo else 'Apagado'}")
         
         except Exception as e:
@@ -936,8 +1000,8 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
 
         # Actualizar status y recargar vista (equivalente a finalizar_escaneo_completo)
         self.ui.statusbar.showMessage(f">> Paso 4/4: Escaneo finalizado. Insertados: {inserted}. {activos}/{total} clientes respondieron", 5000)
-        # Recargar tabla
-        self.cargar_dispositivos()
+        # Recargar tabla SIN verificar ping (estados ya actualizados por escaneo)
+        self.cargar_dispositivos(verificar_ping=False)
         self.ui.btnActualizar.setEnabled(True)
     
     def poblar_db_desde_csv(self):
@@ -1039,7 +1103,8 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
     def finalizar_escaneo_completo(self):
         """Paso 4: Recargar tabla con datos actualizados"""
         print("\n=== Finalizando escaneo completo ===")
-        self.cargar_dispositivos()
+        # Cargar dispositivos SIN verificar ping (ya se verificó en consultar_dispositivos_desde_csv)
+        self.cargar_dispositivos(verificar_ping=False)
         self.ui.statusbar.showMessage(">> Escaneo completo finalizado exitosamente", 5000)
         self.ui.btnActualizar.setEnabled(True)
         print(">> Proceso completado\n")

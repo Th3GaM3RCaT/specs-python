@@ -5,7 +5,7 @@ Write-Host "🔨 Compilando Servidor de Specs..." -ForegroundColor Cyan
 Write-Host ""
 
 # Verificar que estamos en la raíz del proyecto
-if (!(Test-Path "src/servidor.py")) {
+if (!(Test-Path "src/mainServidor.py")) {
     Write-Host "❌ Error: Ejecuta este script desde la raíz del proyecto" -ForegroundColor Red
     Write-Host "   Ejemplo: .\scripts\build_servidor.ps1" -ForegroundColor Yellow
     Throw
@@ -59,6 +59,13 @@ if (Test-Path "config/security_config.py") {
     Write-Host "✓ Incluyendo security_config.py" -ForegroundColor Green
     $pyinstallerArgs += "--add-data"
     $pyinstallerArgs += "config/security_config.py;config"
+}
+
+# Agregar .env si existe
+if (Test-Path ".env") {
+    Write-Host "✓ Incluyendo .env" -ForegroundColor Green
+    $pyinstallerArgs += "--add-data"
+    $pyinstallerArgs += ".env;."
 }
 
 pyinstaller @pyinstallerArgs

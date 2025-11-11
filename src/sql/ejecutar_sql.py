@@ -132,7 +132,8 @@ def setaplication(aplicacion=tuple()):
                        (Dispositivos_serial, name, version, publisher)
                        VALUES (?,?,?,?)""",
                        (aplicacion[0], aplicacion[1], aplicacion[2], aplicacion[3]))
-
+    
+    connection.commit()
 def setAlmacenamiento(almacenamiento=tuple(), indice=1):
     """
     Inserta información de almacenamiento en la BD.
@@ -160,6 +161,8 @@ def setAlmacenamiento(almacenamiento=tuple(), indice=1):
                    VALUES (?,?,?,?,?,?)""",
                    (almacenamiento[0], almacenamiento[1], almacenamiento[2], 
                     almacenamiento[3], almacenamiento[4], almacenamiento[5]))
+    
+    connection.commit()
 
 def setMemoria(memoria=tuple(), indice=1):
     """
@@ -188,6 +191,8 @@ def setMemoria(memoria=tuple(), indice=1):
                    VALUES (?,?,?,?,?,?,?,?)""",
                    (memoria[0], memoria[1], memoria[2], memoria[3], 
                     memoria[4], memoria[5], memoria[6], memoria[7]))
+    
+    connection.commit()
 
 def setInformeDiagnostico(informes = tuple()):
     """Inserta información de diagnóstico de dispositivo en la base de datos.
@@ -203,6 +208,7 @@ def setInformeDiagnostico(informes = tuple()):
                    (Dispositivos_serial, json_diagnostico, reporteDirectX, fecha)
                    VALUES (?,?,?,?)""",
                    (informes[0], informes[1], informes[2], informes[3]))
+    connection.commit()
     
 def setRegistro_cambios(registro = tuple()):
     """Registra cambios de especificaciones de hardware/software de un dispositivo.
@@ -221,14 +227,16 @@ def setRegistro_cambios(registro = tuple()):
                    VALUES (?,?,?,?,?,?,?,?,?)""",
                    (registro[0], registro[1], registro[2], registro[3], registro[4], 
                     registro[5], registro[6], registro[7], registro[8]))
+    connection.commit()
 
-def setDevice(info_dispositivo = tuple()):
+def setDevice(info_dispositivo = tuple(), conn=None):
     """Inserta o actualiza información completa de un dispositivo usando UPSERT.
     
     Args:
         info_dispositivo (tuple): Tupla con (serial, DTI, user, MAC, model, processor, 
                                   GPU, RAM, disk, license_status, ip, activo)
                                   Schema completo de tabla Dispositivos (12 campos)
+        conn (sqlite3.Connection): Conexión opcional. Si None, usa la global.
     
     Returns:
         None
@@ -236,8 +244,12 @@ def setDevice(info_dispositivo = tuple()):
     Note:
         Usa ON CONFLICT para actualizar si el serial ya existe. Este es el único caso
         donde UPSERT está justificado por la complejidad de los 12 campos a actualizar.
+        
+        IMPORTANTE: Si se pasa una conexión custom, el caller es responsable de hacer commit().
     """
-    cursor.execute("""INSERT INTO Dispositivos 
+    cur = conn.cursor() if conn else cursor
+    
+    cur.execute("""INSERT INTO Dispositivos 
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(serial) DO UPDATE SET
                        DTI = excluded.DTI,
@@ -255,6 +267,10 @@ def setDevice(info_dispositivo = tuple()):
             info_dispositivo[4], info_dispositivo[5], info_dispositivo[6], info_dispositivo[7],
             info_dispositivo[8], info_dispositivo[9], info_dispositivo[10], info_dispositivo[11]
     ))
+    
+    # Si usa conexión global, hacer commit automático
+    if not conn:
+        connection.commit()
 
 def actualizar_serial_temporal(serial_real, mac):
     """Actualiza el serial temporal (TEMP_{MAC}) por el serial real del BIOS.
@@ -346,6 +362,7 @@ def setActive(dispositivoEstado = tuple()):
                    VALUES (?,?,?)""", (
                        dispositivoEstado[0], dispositivoEstado[1], dispositivoEstado[2]
                        ))
+    connection.commit()
 
 def set_dispositivo_inicial(ip, mac):
     """

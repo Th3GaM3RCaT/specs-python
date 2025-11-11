@@ -26,13 +26,13 @@ def escuchar_broadcast(port=None, on_message=None):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('', port))
-    print(f"🔊 Escuchando broadcasts en puerto {port}...")
+    print(f"[ESCUCHA] Escuchando broadcasts en puerto {port}...")
 
     try:
         while True:
             data, addr = sock.recvfrom(1024)
             mensaje = data.decode(errors="ignore")
-            print(f"­ƒôí Broadcast recibido de {addr[0]}: {mensaje}")
+            print(f"[BROADCAST] Broadcast recibido de {addr[0]}: {mensaje}")
             
             if on_message:
                 try:
@@ -144,9 +144,9 @@ if modo_tarea:
                     lsp.informe()
                     print("   [OK] Datos recopilados exitosamente")
                     
-                    # 2. Enviar datos al servidor
+                    # 2. Enviar datos al servidor (pasando IP detectada)
                     print("\n2) Enviando datos al servidor...")
-                    lsp.enviar_a_servidor()
+                    lsp.enviar_a_servidor(server_ip=servidor_ip)
                     print("   [OK] Datos enviados al servidor")
                     
                     print(f"\n[DONE] Proceso completado exitosamente")
@@ -212,17 +212,17 @@ else:
         
         def iniciar_informe(self):
             """Inicia recopilación de información del sistema."""
-            self.statusbar.showMessage("📊 Iniciando recopilación de especificaciones...", 3000)
+            self.statusbar.showMessage("Iniciando recopilación de especificaciones...", 3000)
             self.informeDirectX()
             self.run_button.setEnabled(False)
             self.hilo_informe = Hilo(lsp.informe)
             self.hilo_informe.terminado.connect(self.entregar_informe_seguro)
-            self.hilo_informe.error.connect(lambda e: self.statusbar.showMessage(f"❌ Error: {e}", 5000))
+            self.hilo_informe.error.connect(lambda e: self.statusbar.showMessage(f"[ERROR] {e}", 5000))
             self.hilo_informe.start()
        
         def entregar_informe_seguro(self, resultado):
             """Actualiza UI con el informe generado (thread-safe)."""
-            self.statusbar.showMessage("✓ Especificaciones recopiladas exitosamente", 3000)
+            self.statusbar.showMessage("[OK] Especificaciones recopiladas exitosamente", 3000)
             self.entregar_informe(resultado)
             widget = QWidget()
             widget.setLayout(self.vbox)
@@ -241,13 +241,13 @@ else:
 
         def enviar(self):
             """Envía especificaciones al servidor."""
-            self.statusbar.showMessage("📡 Preparando envío de datos...", 2000)
+            self.statusbar.showMessage(" Preparando envío de datos...", 2000)
             self.send_button.setEnabled(False)
             with open("salida.json", "w", encoding="utf-8") as f:
                 dump(lsp.new, f, indent=4)
             self.hilo_enviar = Hilo(lsp.enviar_a_servidor)
             self.hilo_enviar.terminado.connect(lambda: self.send_button.setEnabled(True))
-            self.hilo_enviar.error.connect(lambda e: self.statusbar.showMessage(f"❌ Error al enviar: {e}", 5000))
+            self.hilo_enviar.error.connect(lambda e: self.statusbar.showMessage(f" Error al enviar: {e}", 5000))
             self.hilo_enviar.start()
 
     def main():

@@ -194,7 +194,7 @@ class ServerManager:
             start,end: parámetros para el scanner (bloque de subnets)
             use_broadcast_probe: pasar al scanner si corresponde
             callback_progreso: función opcional que será llamada con diccionarios
-                de progreso durante la consulta de dispositivos. Debe aceptar un
+                de progreso durante el escaneo Y la consulta de dispositivos. Debe aceptar un
                 único argumento (datos) como hace `consultar_dispositivos_desde_csv`.
 
         Retorna:
@@ -206,9 +206,9 @@ class ServerManager:
         csv_path = None
 
         try:
-            # Paso 1: escanear red
+            # Paso 1: escanear red (con progreso)
             scanner = Scanner()
-            csv_path = scanner.run_scan()
+            csv_path = scanner.run_scan(callback_progreso=callback_progreso)
 
             # Paso 2: poblar DB desde CSV
             inserted = scanner.parse_csv_to_db(csv_path)
@@ -255,14 +255,17 @@ class Monitor:
 class Scanner:
     """Responsable de ejecutar el escaneo de red y poblar DB desde CSV."""
     
-    def run_scan(self):
+    def run_scan(self, callback_progreso=None):
         """Ejecuta el escaneo externo y devuelve la ruta al CSV generado.
+
+        Args:
+            callback_progreso: Función opcional que recibe diccionarios con progreso del escaneo.
 
         Nota: esta función importa el escaneo y asume que genera
         `discovered_devices.csv` en la raíz o en `output/`.
         """
         
-        scan.main()
+        scan.main(callback_progreso=callback_progreso)
         # Determinar CSV generado
         project_root = Path(__file__).parent.parent.parent
         output_dir = project_root / 'output'
@@ -285,9 +288,14 @@ class Scanner:
         # Obtener lista de IPs desde CSV
         ips = cargar_ips_desde_csv(csv_path)
         if not ips:
+            print("[parse_csv_to_db] No se cargaron IPs desde CSV")
             return 0
 
+        print(f"[parse_csv_to_db] Procesando {len(ips)} IPs desde CSV...")
         inserted = 0
+        updated = 0
+        skipped = 0
+        
         # Usar conexión thread-safe para esta operación
         try:
             conn = sql.get_thread_safe_connection()
@@ -299,24 +307,32 @@ class Scanner:
                     existe = cur.fetchone()
 
                     if not existe:
-                        serial = f"TEMP_{mac.replace(':','').replace('-','')}" if mac else f"TEMP_{ip.replace('.','') }"
+                        serial = f"TEMP_{mac.replace(':','').replace('-','')}" if mac else f"TEMP_{ip.replace('.','')}"
                         datos_basicos = ( serial, "", "", mac, "Pendiente escaneo", "", "", 0, "", False, ip, False,)
-                        sql.setDevice(datos_basicos)
+                        sql.setDevice(datos_basicos, conn=conn)  # Pasar conexión thread-safe
                         inserted += 1
                     else:
                         serial_existente = existe[0]
                         mac_existente = existe[1]
                         if mac and not mac_existente:
                             cur.execute("UPDATE Dispositivos SET ip = ?, MAC = ? WHERE serial = ?", (ip, mac, serial_existente))
+                            updated += 1
                         else:
                             cur.execute("UPDATE Dispositivos SET ip = ? WHERE serial = ?", (ip, serial_existente))
+                            updated += 1
                 except Exception as e:
-                    print(f"[Scanner] Error poblando DB para {ip}: {e}")
+                    print(f"[parse_csv_to_db] Error poblando DB para IP={ip}, MAC={mac}: {e}")
+                    skipped += 1
 
             conn.commit()
             conn.close()
+            
+            print(f"[parse_csv_to_db] Resultados: {inserted} insertados, {updated} actualizados, {skipped} errores")
+            
         except Exception as e:
-            print(f"[Scanner] Error con conexión DB en parse_csv_to_db: {e}")
+            print(f"[parse_csv_to_db] Error con conexión DB: {e}")
+            import traceback
+            traceback.print_exc()
 
         return inserted
 

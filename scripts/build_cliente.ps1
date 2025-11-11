@@ -61,6 +61,20 @@ if (Test-Path "config/security_config.py") {
     $pyinstallerArgs += "config/security_config.py;config"
 }
 
+# Agregar server_config.json si existe
+if (Test-Path "config/server_config.json") {
+    Write-Host "✓ Incluyendo server_config.json" -ForegroundColor Green
+    $pyinstallerArgs += "--add-data"
+    $pyinstallerArgs += "config/server_config.json;config"
+}
+
+# Agregar .env si existe
+if (Test-Path ".env") {
+    Write-Host "✓ Incluyendo .env" -ForegroundColor Green
+    $pyinstallerArgs += "--add-data"
+    $pyinstallerArgs += ".env;."
+}
+
 pyinstaller @pyinstallerArgs
 
 # Verificar resultado

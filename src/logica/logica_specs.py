@@ -212,8 +212,11 @@ def get_license_status(a=0):
     else:
         return None
 
-def enviar_a_servidor():
+def enviar_a_servidor(server_ip=None):
     """Descubre servidor vía UDP broadcast o config manual y envía especificaciones vía TCP.
+    
+    Args:
+        server_ip (str, optional): IP del servidor. Si se proporciona, salta el discovery.
     
     Proceso:
     1. Intenta cargar IP del servidor desde config/server_config.json (modo manual)
@@ -254,7 +257,7 @@ def enviar_a_servidor():
         security_available = True
     except ImportError:
         security_available = False
-        _print_status("⚠️  WARNING: security_config no disponible, enviando sin autenticación")
+        _print_status("[WARN] security_config no disponible, enviando sin autenticacion")
     
     # Cargar puertos desde .env
     try:
@@ -266,11 +269,11 @@ def enviar_a_servidor():
         tcp_port = 5255         # Fallback puerto TCP servidor
     
     txt_data = ""
-    HOST = None
+    HOST = server_ip  # Usar IP proporcionada si existe
     
     # MODO 1: Intentar cargar configuración manual (para casos sin permisos de Firewall)
     config_path = Path(__file__).parent.parent.parent / "config" / "server_config.json"
-    use_discovery = True
+    use_discovery = True if server_ip is None else False  # Si ya tenemos IP, no hacer discovery
     
     if config_path.exists():
         try:
