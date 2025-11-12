@@ -505,86 +505,20 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.textEditUltimoCambio.setPlainText('Seleccione un dispositivo para ver los cambios...')
 
     def on_action_detener(self):
-        """Handler para la action 'actiondetener' de la barra de herramientas.
+        """Handler para la action 'actiondetener' (DEPRECATED - broadcasts eliminados).
 
-        Llama a `server_mgr.stop_periodic_announcements()` si existe y muestra feedback en la UI.
+        Esta función ya no hace nada - los anuncios UDP fueron eliminados.
         """
-        try:
-            if hasattr(self, 'server_mgr') and self.server_mgr:
-                self.server_mgr.stop_periodic_announcements()
-                self.ui.statusbar.showMessage('Anuncios periódicos detenidos', 3000)
-                print('Anuncios periódicos detenidos (actiondetener)')
-            else:
-                # Intentar detener el Event global usado por la ruta legacy
-                try:
-                    ls.ANNOUNCE_STOP_EVENT.set()
-                    self.ui.statusbar.showMessage('Anuncios periódicos detenidos (legacy)', 3000)
-                    print('Anuncios periódicos detenidos vía ANNOUNCE_STOP_EVENT (legacy)')
-                except Exception:
-                    self.ui.statusbar.showMessage('Servidor no inicializado o ServerManager no disponible', 3000)
-                    print('No hay ServerManager disponible para detener anuncios')
-        except Exception as e:
-            print(f'Error al detener anuncios periódicos: {e}')
-            self.ui.statusbar.showMessage(f'ERROR al detener anuncios: {e}', 5000)
-        finally:
-            try:
-                action_detener = getattr(self.ui, 'actiondetener', None)
-                if action_detener:
-                    action_detener.setEnabled(False)
-            except Exception:
-                pass
-            # Habilitar actioniniciar para permitir reiniciar anuncios
-            try:
-                action_iniciar = getattr(self.ui, 'actioniniciar', None)
-                if action_iniciar:
-                    action_iniciar.setEnabled(True)
-            except Exception:
-                pass
-            try:
-                if getattr(self, 'status_indicator', None):
-                    self.set_status_indicator('red')
-            except Exception:
-                pass
+        self.ui.statusbar.showMessage('Funcion deprecated - broadcasts eliminados', 3000)
+        print('[INFO] on_action_detener() deprecated - sistema ya no usa broadcasts')
 
     def on_action_iniciar(self):
-        """Handler para iniciar anuncios periódicos desde la UI.
+        """Handler para iniciar servidor (DEPRECATED - ya no hay anuncios).
 
-        Llama a `ServerManager.start_periodic_announcements()` y actualiza la UI.
+        Esta función ya no hace nada - los anuncios UDP fueron eliminados.
         """
-        try:
-            if not hasattr(self, 'server_mgr') or not self.server_mgr:
-                self.ui.statusbar.showMessage('ServerManager no inicializado', 3000)
-                print('No hay ServerManager para iniciar anuncios')
-                return
-
-            # Iniciar anuncios periódicos (por defecto intervalo 10s)
-            self.server_mgr.start_periodic_announcements()
-            self.ui.statusbar.showMessage('Anuncios periódicos iniciados', 3000)
-            print('Anuncios periódicos iniciados (actioniniciar)')
-
-            # Ajustar botones: iniciar deshabilitado, detener habilitado
-            try:
-                action_iniciar = getattr(self.ui, 'actioniniciar', None)
-                if action_iniciar:
-                    action_iniciar.setEnabled(False)
-            except Exception:
-                pass
-            try:
-                if getattr(self.ui, 'actiondetener', None):
-                    self.ui.actiondetener.setEnabled(True)
-            except Exception:
-                pass
-
-            # Semáforo a verde
-            try:
-                if getattr(self, 'status_indicator', None):
-                    self.set_status_indicator('green')
-            except Exception:
-                pass
-
-        except Exception as e:
-            print(f'Error al iniciar anuncios periódicos: {e}')
-            self.ui.statusbar.showMessage(f'ERROR al iniciar anuncios: {e}', 5000)
+        self.ui.statusbar.showMessage('Funcion deprecated - broadcasts eliminados', 3000)
+        print('[INFO] on_action_iniciar() deprecated - sistema ya no usa broadcasts')
 
     def set_status_indicator(self, state: str):
         """Actualizar el semáforo de estado en la barra de estado.
@@ -1044,24 +978,10 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.btnActualizar.setEnabled(True)
     
     def anunciar_y_esperar_clientes(self):
-        """Paso 3: Anuncia servidor y consulta cada cliente con actualizaciones en tiempo real"""
-        def callback_anuncio(callback_progreso=None):
+        """Paso 3: Consulta cada cliente directamente con actualizaciones en tiempo real (sin broadcasts)"""
+        def callback_consulta(callback_progreso=None):
             try:
-                print("\n=== Anunciando servidor y consultando clientes ===")
-                # Anunciar presencia
-                print(">> Enviando broadcast...")
-                # Preferir el facade ServerManager si está disponible
-                try:
-                    if hasattr(self, 'server_mgr') and self.server_mgr:
-                        self.server_mgr.announce_once()
-                    else:
-                        ls.anunciar_ip()
-                except Exception:
-                    ls.anunciar_ip()
-                
-                # Esperar un poco para que clientes respondan
-                import time
-                time.sleep(2)
+                print("\n=== Consultando clientes desde lista de IPs ===")
                 
                 # Consultar dispositivos desde CSV con callback de progreso
                 print(">> Consultando dispositivos...")
@@ -1082,7 +1002,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 return (0, 0)
         
         # Usar HiloConProgreso para recibir actualizaciones en tiempo real
-        self.hilo_consulta = HiloConProgreso(callback_anuncio)
+        self.hilo_consulta = HiloConProgreso(callback_consulta)
         self.hilo_consulta.progreso.connect(self.on_consulta_progreso)
         self.hilo_consulta.terminado.connect(self.on_consulta_terminada)
         self.hilo_consulta.error.connect(self.on_consulta_error)

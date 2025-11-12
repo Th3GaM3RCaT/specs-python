@@ -1,167 +1,96 @@
-﻿import sys
-import socket
-import time
-from logica.logica_Hilo import Hilo
+﻿from sys import argv
 
-modo_tarea = "--tarea" in sys.argv
+from json import dumps
 
-def escuchar_broadcast(port=None, on_message=None):
-    """Escucha broadcasts UDP en el puerto especificado.
+modo_tarea = "--tarea" in argv
+
+def escuchar_solicitudes(port=5256):
+    """Cliente escucha solicitudes TCP del servidor.
     
     Args:
-        port (int): Puerto UDP donde escuchar broadcasts. Si es None, usa valor del .env
-        on_message (callable): Callback que recibe (mensaje, direccion) cuando llega broadcast
+        port (int): Puerto TCP donde escuchar solicitudes del servidor
     
     Note:
-        Ejecuta en loop infinito hasta Ctrl+C. Ideal para modo daemon.
+        El servidor puede solicitar datos activamente conectándose a este puerto.
     """
-    # Cargar puerto desde .env si no se especifica
-    if port is None:
-        try:
-            from config.security_config import DISCOVERY_PORT
-            port = DISCOVERY_PORT
-        except ImportError:
-            port = 37020  # Fallback
+    from logica.logica_specs import informe, new
     
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('', port))
-    print(f"[ESCUCHA] Escuchando broadcasts en puerto {port}...")
-
+    print(f"[DAEMON] Cliente escuchando solicitudes en puerto {port}...")
+    from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, timeout
+    server_socket = socket(AF_INET, SOCK_STREAM)
+    server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    server_socket.settimeout(1.0)
+    
     try:
-        while True:
-            data, addr = sock.recvfrom(1024)
-            mensaje = data.decode(errors="ignore")
-            print(f"[BROADCAST] Broadcast recibido de {addr[0]}: {mensaje}")
-            
-            if on_message:
-                try:
-                    on_message(mensaje, addr)
-                except Exception as e:
-                    print(f"[ERROR] Error en callback: {e}")
-                    import traceback
-                    traceback.print_exc()
-    except KeyboardInterrupt:
-        print("\n[STOP] Cliente detenido por usuario.")
-    except Exception as e:
-        print(f"Error en escucha: {e}")
+        server_socket.bind(("0.0.0.0", port))
+        server_socket.listen(5)
+        print(f"[OK] Escuchando en puerto {port}")
+        print("[INFO] El servidor puede solicitar datos en cualquier momento")
+        print("Presiona Ctrl+C para detener\n")
         
+        request_count = 0
+        
+        while True:
+            try:
+                conn, addr = server_socket.accept()
+                request_count += 1
+                
+                print(f"\n[SOLICITUD #{request_count}] Servidor conectado: {addr[0]}")
+                
+                try:
+                    conn.settimeout(5)
+                    data = conn.recv(1024).decode('utf-8').strip()
+                    
+                    if data == "GET_SPECS":
+                        print("[PROCESO] Recopilando especificaciones...")
+                        informe()
+                        print("[OK] Datos recopilados")
+                        
+                        json_data = dumps(new, ensure_ascii=False)
+                        conn.sendall(json_data.encode('utf-8'))
+                        print(f"[OK] Enviados {len(json_data)} bytes\n")
+                        
+                    elif data == "PING":
+                        response = {"status": "alive"}
+                        conn.sendall(dumps(response).encode('utf-8'))
+                        print("[OK] PING respondido\n")
+                        
+                except Exception as e:
+                    print(f"[ERROR] Error procesando: {e}\n")
+                
+                finally:
+                    conn.close()
+            
+            except timeout:
+                continue
+                
+    except KeyboardInterrupt:
+        print("\n[STOP] Cliente detenido por usuario")
     finally:
-        sock.close()
+        server_socket.close()
 
 
 if modo_tarea:
-    # Modo tarea programada: ejecuta inmediatamente o espera broadcasts según configuración
+    # Modo tarea: Cliente escucha solicitudes del servidor
     print("=" * 70)
     print("[MODO TAREA] Activado")
     print("=" * 70)
     
-    from logica import logica_specs as lsp
-    from datetime import datetime
-    from pathlib import Path
-    from json import load
+    from logica.logica_specs import configurar_tarea
     
-    #consultar tarea, si no existe crear una nueva
-    if lsp.configurar_tarea():
-        lsp.configurar_tarea(0)
+    # Configurar tarea programada si no existe
+    if configurar_tarea():
+        configurar_tarea(0)
         print("[MODO TAREA] Nueva tarea programada creada.")
     
-    # Verificar modo de operación (manual vs discovery)
-    config_path = Path(__file__).parent.parent / "config" / "server_config.json"
-    use_discovery = True
-    
-    if config_path.exists():
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = load(f)
-                use_discovery = config.get("use_discovery", True)
-        except Exception as e:
-            print(f"[WARN] Error al leer configuracion: {e}")
-    
-    if not use_discovery:
-        # MODO MANUAL: Ejecutar inmediatamente sin esperar broadcasts
-        print("Modo configuracion manual detectado")
-        print("Ejecutando recopilacion inmediata...\n")
-        
-        try:
-            print(f"[START] Iniciando recopilacion de especificaciones...")
-            print(f"[TIME] Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # 1. Ejecutar informe (recopilar datos del sistema)
-            print("\n1) Recopilando datos del sistema...")
-            lsp.informe()
-            print("   [OK] Datos recopilados exitosamente")
-            
-            # 2. Enviar datos al servidor
-            print("\n2) Enviando datos al servidor...")
-            lsp.enviar_a_servidor()
-            print("   [OK] Datos enviados al servidor")
-            
-            print(f"\n[DONE] Proceso completado exitosamente")
-            print(f"{'='*70}\n")
-            
-        except Exception as e:
-            print(f"\n[ERROR] Error durante el proceso: {e}")
-            import traceback
-            traceback.print_exc()
-            print(f"{'='*70}\n")
-            sys.exit(1)
-    else:
-        # MODO DISCOVERY: Esperar broadcasts del servidor
-        print("Esperando solicitud del servidor...")
-        print("Presiona Ctrl+C para detener\n")
-        
-        # Cooldown para evitar multiples ejecuciones
-        ultima_ejecucion = 0
-        COOLDOWN_SEGUNDOS = 60  # Esperar 60 segundos entre ejecuciones
-        
-        def manejar_broadcast(mensaje, addr):
-            """Callback que se ejecuta al recibir broadcast del servidor."""
-            global ultima_ejecucion
-            
-            # Verificar si es el mensaje del servidor
-            if "servidor specs" in mensaje.lower():
-                servidor_ip = addr[0]
-                print(f"\n{'='*70}")
-                print(f"[DISCOVERY] Servidor detectado en {servidor_ip}")
-                
-                # Verificar cooldown
-                tiempo_actual = time.time()
-                if tiempo_actual - ultima_ejecucion < COOLDOWN_SEGUNDOS:
-                    tiempo_restante = int(COOLDOWN_SEGUNDOS - (tiempo_actual - ultima_ejecucion))
-                    print(f"[COOLDOWN] Esperar {tiempo_restante} segundos...")
-                    print(f"{'='*70}\n")
-                    return
-                
-                ultima_ejecucion = tiempo_actual
-                
-                print(f"[START] Iniciando recopilacion de especificaciones...")
-                print(f"[TIME] Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                
-                try:
-                    # 1. Ejecutar informe (recopilar datos del sistema)
-                    print("\n1) Recopilando datos del sistema...")
-                    lsp.informe()
-                    print("   [OK] Datos recopilados exitosamente")
-                    
-                    # 2. Enviar datos al servidor (pasando IP detectada)
-                    print("\n2) Enviando datos al servidor...")
-                    lsp.enviar_a_servidor(server_ip=servidor_ip)
-                    print("   [OK] Datos enviados al servidor")
-                    
-                    print(f"\n[DONE] Proceso completado exitosamente")
-                    print(f"{'='*70}\n")
-                    
-                except Exception as e:
-                    print(f"\n[ERROR] Error durante el proceso: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    print(f"{'='*70}\n")
-        
-        # Ejecutar escucha con callback (puerto desde .env)
-        escuchar_broadcast(on_message=manejar_broadcast)
+    # Escuchar solicitudes del servidor
+    escuchar_solicitudes(port=5256)
+
 else:
     # Modo GUI: interfaz gráfica
+    import socket
+    import time
+    from logica.logica_Hilo import Hilo
     from sys import argv
     from json import dump
     from PySide6.QtCore import Qt
@@ -257,7 +186,8 @@ else:
         else:
             window = MainWindow()
             window.show()
-            sys.exit(app.exec())
+            from sys import exit
+            exit(app.exec())
     
     # Ejecutar solo si es el script principal
     if __name__ == "__main__":

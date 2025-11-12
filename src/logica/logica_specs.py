@@ -1,18 +1,14 @@
 # logica_specs.py
 from datetime import datetime
 from json import dump, dumps, load
-from locale import getpreferredencoding
 from os import environ, name, path
 from pathlib import Path
-from re import IGNORECASE, search
 from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, socket
 from subprocess import CREATE_NO_WINDOW, run
 import sys
 
-import psutil
-from getmac import get_mac_address as gma
-from windows_tools.installed_software import get_installed_software
-from wmi import WMI
+# Imports pesados - cargar lazy (solo cuando se usan)
+# psutil, wmi, windows_tools se importan dentro de informe()
 
 # Constantes globales justificadas
 nombre_tarea = "informe_de_dispositivo"  # Usado por configurar_tarea()
@@ -72,6 +68,12 @@ def informe():
     Note:
         Modifica el diccionario global `new`. UI debe deshabilitar botón antes de llamar.
     """
+    # Lazy imports - cargar solo cuando se ejecuta informe()
+    import psutil
+    from getmac import get_mac_address as gma
+    from windows_tools.installed_software import get_installed_software
+    from wmi import WMI
+    
     my_system = WMI().Win32_ComputerSystem()[0]
 
     # Import con fallback para PyInstaller
@@ -187,6 +189,10 @@ def get_license_status(a=0):
         OSError: Si no se ejecuta en Windows NT
         FileNotFoundError: Si no se encuentra slmgr.vbs
     """
+    # Lazy imports
+    from locale import getpreferredencoding
+    from re import IGNORECASE, search
+    
     if name != "nt":
         raise OSError("solo en windows nt")
     type = r""
@@ -213,32 +219,29 @@ def get_license_status(a=0):
         return None
 
 def enviar_a_servidor(server_ip=None):
-    """Descubre servidor vía UDP broadcast o config manual y envía especificaciones vía TCP.
+    """Envía especificaciones al servidor vía TCP (solo modo manual, sin discovery).
     
     Args:
-        server_ip (str, optional): IP del servidor. Si se proporciona, salta el discovery.
+        server_ip (str, optional): IP del servidor. Si es None, lee desde config.
     
     Proceso:
-    1. Intenta cargar IP del servidor desde config/server_config.json (modo manual)
-    2. Si no existe config o use_discovery=true, escucha broadcasts UDP en puerto 37020
-    3. Guarda info del servidor en servidor.json
-    4. Lee dxdiag_output.txt y lo incluye en el JSON
-    5. Detecta IP local del cliente
-    6. Genera token de autenticación (si security_config disponible)
-    7. Envía JSON completo vía TCP al servidor puerto 5255
+    1. Carga IP del servidor desde config/server_config.json o parámetro
+    2. Lee dxdiag_output.txt y lo incluye en el JSON
+    3. Detecta IP local del cliente
+    4. Genera token de autenticación (si security_config disponible)
+    5. Envía JSON completo vía TCP al servidor puerto 5255
     
     Returns:
         None
     
     Raises:
-        timeout: Si no se encuentra servidor en 5 segundos (modo discovery)
-        ConnectionError: Si no se puede conectar a IP configurada (modo manual)
+        ConnectionError: Si no se puede conectar al servidor
     
     Note:
         Modifica el diccionario global `new` agregando dxdiag_output_txt y client_ip.
         
-        Modo manual (SIN FIREWALL): Crear config/server_config.json con:
-        {"server_ip": "192.168.1.100", "server_port": 5255, "use_discovery": false}
+        Configuración requerida en config/server_config.json:
+        {"server_ip": "192.168.1.100", "server_port": 5255}
     
     Security:
         Genera token de autenticación basado en timestamp y secreto compartido.
@@ -248,10 +251,10 @@ def enviar_a_servidor(server_ip=None):
     security_available = False
     
     try:
-        import sys
+        from sys import path
         # Agregar directorio config al path
         config_dir = Path(__file__).parent.parent.parent / "config"
-        sys.path.insert(0, str(config_dir))
+        path.insert(0, str(config_dir))
         
         from security_config import generate_auth_token  # type: ignore[import]
         security_available = True
@@ -259,58 +262,35 @@ def enviar_a_servidor(server_ip=None):
         security_available = False
         _print_status("[WARN] security_config no disponible, enviando sin autenticacion")
     
-    # Cargar puertos desde .env
+    # Cargar puerto desde config
     try:
-        from config.security_config import DISCOVERY_PORT, SERVER_PORT
-        discovery_port = DISCOVERY_PORT
+        from config.security_config import SERVER_PORT
         tcp_port = SERVER_PORT
     except ImportError:
-        discovery_port = 37020  # Fallback puerto UDP discovery
-        tcp_port = 5255         # Fallback puerto TCP servidor
+        tcp_port = 5255  # Fallback puerto TCP servidor
     
     txt_data = ""
     HOST = server_ip  # Usar IP proporcionada si existe
     
-    # MODO 1: Intentar cargar configuración manual (para casos sin permisos de Firewall)
+    # Intentar cargar configuración manual
     config_path = Path(__file__).parent.parent.parent / "config" / "server_config.json"
-    use_discovery = True if server_ip is None else False  # Si ya tenemos IP, no hacer discovery
     
-    if config_path.exists():
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = load(f)
-                use_discovery = config.get("use_discovery", True)
-                
-                if not use_discovery:
+    if HOST is None:
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = load(f)
                     HOST = config.get("server_ip")
                     tcp_port = config.get("server_port", 5255)
-                    _print_status(f"[CONFIG] Configuracion manual: Servidor en {HOST}:{tcp_port}")
-                    _print_status(f"[INFO] Modo discovery UDP deshabilitado (util sin permisos de Firewall)")
-        except Exception as e:
-            _print_status(f"[WARN] Error al leer configuracion: {e}, usando discovery UDP")
-            use_discovery = True
-    
-    # MODO 2: Discovery automático vía UDP broadcasts (requiere Firewall configurado)
-    if use_discovery or HOST is None:
-        try:
-            s = socket(AF_INET, SOCK_DGRAM)
-            s.settimeout(5)
-            s.bind(("", discovery_port))
-            _print_status(f"[DISCOVERY] Buscando servidor (escuchando broadcasts en puerto {discovery_port})...")
-            
-            # Descubrir servidor vía UDP broadcast
-            data, addr = s.recvfrom(1024)
-            HOST = addr[0]
-            s.close()  # Cerrar socket UDP
-            
-            _print_status(f"[OK] Servidor encontrado via broadcast: {HOST}")
-        except Exception as e:
-            if HOST is None:  # No teníamos IP de config y el broadcast falló
-                _print_status(f"[ERROR] Error en discovery UDP: {e}")
-                _print_status(f"[SOLUCION] Crea config/server_config.json con IP del servidor:")
-                _print_status(f'   {{"server_ip": "192.168.1.X", "server_port": 5255, "use_discovery": false}}')
+                    _print_status(f"[CONFIG] Servidor configurado: {HOST}:{tcp_port}")
+            except Exception as e:
+                _print_status(f"[ERROR] Error al leer configuracion: {e}")
                 raise
-            # Si teníamos IP de config, continuar con esa IP
+        else:
+            _print_status(f"[ERROR] No se especificó IP del servidor")
+            _print_status(f"[SOLUCION] Crea config/server_config.json con:")
+            _print_status(f'   {{"server_ip": "192.168.1.X", "server_port": 5255}}')
+            raise ValueError("IP del servidor no especificada")
     
     # Verificar que tenemos IP del servidor (por cualquier método)
     if HOST is None:
@@ -378,11 +358,11 @@ def configurar_tarea(valor=1):
     Security:
         Usa subprocess con lista de argumentos (NO shell=True) para prevenir inyección.
     """
-    import re
+    from re import match
     from pathlib import Path
     
     # Validar nombre_tarea contra caracteres peligrosos
-    if not re.match(r'^[a-zA-Z0-9_-]+$', nombre_tarea):
+    if not match(r'^[a-zA-Z0-9_-]+$', nombre_tarea):
         raise ValueError(f"Nombre de tarea inválido: {nombre_tarea}. Solo se permiten letras, números, guiones y guiones bajos.")
     
     accion = ["add", "query", "delete"]
