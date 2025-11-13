@@ -176,6 +176,40 @@ def informe():
     return new
 
 
+def preparar_datos_completos():
+    """Prepara datos completos del sistema incluyendo informe base + DirectX.
+    
+    Reutiliza lógica de informe() y agrega dxdiag_output.txt si existe.
+    Usado tanto por modo daemon (GET_SPECS) como modo manual (enviar_a_servidor).
+    
+    Returns:
+        dict: Diccionario global `new` con todas las especificaciones
+    
+    Note:
+        Modifica el diccionario global `new`.
+        Si dxdiag_output.txt no existe, continúa sin error (advertencia en consola).
+    """
+    # Recopilar especificaciones base
+    informe()
+    
+    # Agregar informe DirectX si existe
+    try:
+        output_dir = Path(__file__).parent.parent.parent / "output"
+        dxdiag_file = output_dir / "dxdiag_output.txt"
+        
+        if dxdiag_file.exists():
+            with open(dxdiag_file, "r", encoding="cp1252") as f:
+                new["dxdiag_output_txt"] = f.read()
+            _print_status("[OK] Informe DirectX incluido")
+        else:
+            _print_status("[WARN] No se encontro dxdiag_output.txt")
+            _print_status("[INFO] Ejecuta datos/informeDirectX.py para generarlo")
+    except Exception as e:
+        _print_status(f"[ERROR] Error leyendo DirectX: {e}")
+    
+    return new
+
+
 def get_license_status(a=0):
     """Obtiene estado o fecha de expiración de licencia Windows via slmgr.vbs.
     
@@ -305,10 +339,8 @@ def enviar_a_servidor(server_ip=None):
     with open(output_dir / "servidor.json", "w", encoding="utf-8") as f:
         dump({"server_ip": HOST, "server_port": tcp_port}, f, indent=4)
 
-    with open(output_dir / "dxdiag_output.txt", "r", encoding="cp1252") as f:
-        txt_data = f.read()
-    # Incluir el TXT dentro del JSON
-    new["dxdiag_output_txt"] = txt_data
+    # Preparar datos completos (informe + DirectX)
+    preparar_datos_completos()
     
     # Agregar IP del cliente
     try:

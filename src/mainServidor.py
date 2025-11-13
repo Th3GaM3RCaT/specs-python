@@ -10,13 +10,57 @@ from logica import logica_servidor as ls  # Importar lógica del servidor
 from logica.logica_Hilo import Hilo, HiloConProgreso  # Para operaciones en background
 # Utilitario compartido de ping asíncrono (evitar duplicación)
 from logica.ping_utils import ping_host
-from typing import Optional
+
+# Constantes de colores para estados de dispositivos
+COLOR_ENCENDIDO = "green"
+COLOR_APAGADO = "darkred"
+COLOR_SIN_IP = "grey"
+COLOR_VERIFICANDO = "grey"
+
+def actualizar_estado_item(item: QtWidgets.QTableWidgetItem, estado: str):
+    """Actualiza el texto y color de un QTableWidgetItem según el estado.
+    
+    Args:
+        item: QTableWidgetItem a actualizar
+        estado: 'encendido', 'apagado', 'sin_ip', o 'verificando'
+    """
+    if estado == 'encendido':
+        item.setText("Encendido")
+        item.setBackground(QBrush(QColor(COLOR_ENCENDIDO)))
+    elif estado == 'apagado':
+        item.setText("Apagado")
+        item.setBackground(QBrush(QColor(COLOR_APAGADO)))
+    elif estado == 'sin_ip':
+        item.setText("[?] Sin IP")
+        item.setBackground(QBrush(QColor(COLOR_SIN_IP)))
+    elif estado == 'verificando':
+        item.setText("[...]")
+        item.setBackground(QBrush(QColor(COLOR_VERIFICANDO)))
+
+
+class IPAddressTableWidgetItem(QtWidgets.QTableWidgetItem):
+    """QTableWidgetItem personalizado que ordena direcciones IP numéricamente.
+    
+    Convierte la IP a una tupla de enteros para ordenamiento correcto:
+    Ejemplo: "10.100.1.12" -> (10, 100, 1, 12) < (10, 100, 1, 110)
+    """
+    
+    def __lt__(self, other):
+        """Operador menor que (<) para ordenamiento."""
+        try:
+            # Convertir ambas IPs a tuplas de enteros
+            self_ip = tuple(int(part) for part in self.text().split('.'))
+            other_ip = tuple(int(part) for part in other.text().split('.'))
+            return self_ip < other_ip
+        except (ValueError, AttributeError):
+            # Si no son IPs válidas, usar ordenamiento alfabético por defecto
+            return super().__lt__(other)
+
 
 class InventarioWindow(QMainWindow, Ui_MainWindow):
     # Atributos de instancia (anotaciones) para Pylance
     from typing import Optional as _Opt  # solo para anotación local
     server_mgr: _Opt[ls.ServerManager]
-    status_indicator: _Opt[QtWidgets.QFrame]
     ip_to_row: dict
 
     def __init__(self):
@@ -38,49 +82,11 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         # Mapa de IP a fila de tabla para actualización en tiempo real
         self.ip_to_row = {}
 
-        # Agregar emojis a los botones después de cargar la UI
-        #self.agregar_iconos_texto()
-
         # Conectar señales
         self.ui.tableDispositivos.itemSelectionChanged.connect(self.on_dispositivo_seleccionado)
         self.ui.lineEditBuscar.textChanged.connect(self.filtrar_dispositivos)
         self.ui.comboBoxFiltro.currentTextChanged.connect(self.aplicar_filtro)
         self.ui.btnActualizar.clicked.connect(self.iniciar_escaneo_completo)  # Cambio: ahora hace escaneo completo
-
-        # Action de la barra de herramientas: detener/anunciar (si existen)
-        try:
-            action_detener = getattr(self.ui, 'actiondetener', None)
-            if action_detener:
-                action_detener.triggered.connect(self.on_action_detener)
-                try:
-                    action_detener.setEnabled(False)
-                except Exception:
-                    pass
-
-            # Si el .ui define un action para iniciar anuncios, conéctalo también
-            action_iniciar = getattr(self.ui, 'actioniniciar', None)
-            if action_iniciar:
-                action_iniciar.triggered.connect(self.on_action_iniciar)
-                # Inicialmente deshabilitar hasta servidor listo
-                try:
-                    action_iniciar.setEnabled(False)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        # Indicador tipo semáforo en la esquina derecha de la barra de estado
-        try:
-            self.status_indicator = QtWidgets.QFrame()
-            self.status_indicator.setFixedSize(14, 14)
-            self.status_indicator.setStyleSheet("background-color: gray; border-radius: 7px; border: 1px solid #666;")
-            self.status_indicator.setToolTip('Estado anuncios: desconocido')
-            try:
-                self.ui.statusbar.addPermanentWidget(self.status_indicator)
-            except Exception:
-                pass
-        except Exception:
-            self.status_indicator = None
 
         # Botones de acciones
         self.ui.btnVerDiagnostico.clicked.connect(self.ver_diagnostico)
@@ -103,6 +109,11 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
 
         # Iniciar servidor en segundo plano
         self.iniciar_servidor()
+        
+        # Timer para verificación automática de estados cada 10 segundos
+        self.timer_estados = QtCore.QTimer(self)
+        self.timer_estados.timeout.connect(self.verificar_estados_automatico)
+        self.timer_estados.start(10000)  # 10 segundos
     
     def cargar_datos_iniciales(self):
         """Carga datos de la DB. Si no hay datos, inicia actualización automática."""
@@ -155,31 +166,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.hilo_servidor.start()
         self.ui.statusbar.showMessage(">> Servidor iniciado - Esperando conexiones de clientes", 3000)
         print("Servidor TCP iniciado en puerto 5255")
-
-        # Habilitar actiondetener si existe
-        try:
-            action_detener = getattr(self.ui, 'actiondetener', None)
-            if action_detener:
-                action_detener.setEnabled(True)
-            # Habilitar actioniniciar si existe (permite arrancar anuncios desde UI)
-            action_iniciar = getattr(self.ui, 'actioniniciar', None)
-            if action_iniciar:
-                try:
-                    action_iniciar.setEnabled(True)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        # Actualizar indicador de estado en la barra (semaforo)
-        try:
-            if self.status_indicator is not None:
-                if self.server_mgr and getattr(self.server_mgr, '_announcer_running', False):
-                    self.set_status_indicator('green')
-                else:
-                    self.set_status_indicator('yellow')
-        except Exception:
-            pass
     
     def configurar_tabla(self):
         """Configura el ancho de columnas y otros ajustes de la tabla"""
@@ -233,10 +219,10 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                     self.ip_to_row[ip] = row_position
                 
                 # Columna Estado
+                estado_item = QtWidgets.QTableWidgetItem()
                 if verificar_ping:
                     # Inicialmente "Verificando..." (haremos ping)
-                    estado_item = QtWidgets.QTableWidgetItem("[...]")
-                    estado_item.setBackground(QBrush(QColor(255, 255, 200)))
+                    actualizar_estado_item(estado_item, 'verificando')
                 else:
                     # Cargar estado desde tabla 'activo' (ya verificado por escaneo completo)
                     try:
@@ -245,20 +231,12 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                         estado_db = cursor.fetchone()
                         
                         if estado_db:
-                            es_activo = bool(estado_db[0])
-                            if es_activo:
-                                estado_item = QtWidgets.QTableWidgetItem("Encendido")
-                                estado_item.setBackground(QBrush(QColor(150, 255, 150)))
-                            else:
-                                estado_item = QtWidgets.QTableWidgetItem("Apagado")
-                                estado_item.setBackground(QBrush(QColor(255, 200, 200)))
+                            actualizar_estado_item(estado_item, 'encendido' if estado_db[0] else 'apagado')
                         else:
-                            estado_item = QtWidgets.QTableWidgetItem("[?]")
-                            estado_item.setBackground(QBrush(QColor(200, 200, 200)))
+                            actualizar_estado_item(estado_item, 'sin_ip')
                     except Exception as e:
                         print(f"Error cargando estado para {serial}: {e}")
-                        estado_item = QtWidgets.QTableWidgetItem("[?]")
-                        estado_item.setBackground(QBrush(QColor(200, 200, 200)))
+                        actualizar_estado_item(estado_item, 'sin_ip')
                 
                 self.ui.tableDispositivos.setItem(row_position, 0, estado_item)
                 
@@ -274,17 +252,19 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 # Licencia con color
                 lic_item = QtWidgets.QTableWidgetItem("[OK] Activa" if license_status else "[X] Inactiva")
                 if not license_status:
-                    lic_item.setForeground(QBrush(QColor(200, 0, 0)))
+                    lic_item.setForeground(QBrush(QColor("darkred")))
                 self.ui.tableDispositivos.setItem(row_position, 8, lic_item)
                 
-                self.ui.tableDispositivos.setItem(row_position, 9, QtWidgets.QTableWidgetItem(ip or '-'))
+                # IP con ordenamiento numérico personalizado
+                ip_item = IPAddressTableWidgetItem(ip or '-')
+                self.ui.tableDispositivos.setItem(row_position, 9, ip_item)
             
             # Actualizar contador
             self.ui.labelContador.setText(f"Mostrando {len(dispositivos)} dispositivos")
             
             # Verificar estado de conexión en background SOLO si verificar_ping=True
             if verificar_ping:
-                self.verificar_estados_conexion(dispositivos)
+                self._verificar_estados_ping(dispositivos, verbose=True)
             else:
                 print(f">> Estados cargados desde DB (sin ping) - {len(dispositivos)} dispositivos")
             
@@ -294,16 +274,37 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             traceback.print_exc()
             self.ui.statusbar.showMessage(f"ERROR: Error cargando datos: {e}", 5000)
     
-    def verificar_estados_conexion(self, dispositivos):
-        """Verifica el estado de conexión (ping) de todos los dispositivos en background"""
+    def verificar_estados_automatico(self):
+        """Verificación automática silenciosa de estados cada 10 segundos"""
+        # Solo verificar si hay dispositivos en la tabla
+        if self.ui.tableDispositivos.rowCount() == 0:
+            return
         
+        # Obtener lista de dispositivos actuales de la tabla
+        dispositivos = []
+        for row in range(self.ui.tableDispositivos.rowCount()):
+            ip_item = self.ui.tableDispositivos.item(row, 9)  # Columna IP
+            if ip_item:
+                ip = ip_item.text()
+                dispositivos.append((row, ip))
+        
+        # Ejecutar verificación silenciosa
+        self._verificar_estados_ping(dispositivos, verbose=False)
+    
+    def _verificar_estados_ping(self, dispositivos_data, verbose=True):
+        """Verifica el estado de conexión (ping) de dispositivos en background.
+        
+        Args:
+            dispositivos_data: Lista de tuplas (row, ip) o lista de tuplas de DB
+            verbose: Si True, muestra mensajes en consola/statusbar. Si False, silencioso.
+        
+        Note:
+            Función consolidada que reemplaza verificar_estados_conexion y 
+            verificar_estados_conexion_silencioso para evitar duplicación.
+        """
         def verificar_estados():
-            async def ping_dispositivo(ip, row):
-                """Hace ping a un dispositivo y actualiza la UI.
-
-                Reusa `ping_host` del módulo compartido para evitar duplicación de
-                lógica entre el servidor y la UI.
-                """
+            async def ping_dispositivo(row, ip):
+                """Hace ping a un dispositivo y retorna resultado"""
                 try:
                     if not ip or ip == '-':
                         return (row, False, "sin_ip")
@@ -316,9 +317,16 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             async def verificar_todos():
                 # Crear tareas para todos los dispositivos
                 tareas = []
-                for idx, dispositivo in enumerate(dispositivos):
-                    ip = dispositivo[10]  # IP está en posición 10
-                    tareas.append(ping_dispositivo(ip, idx))
+                for item in dispositivos_data:
+                    # Detectar formato: (row, ip) o tupla de DB
+                    if isinstance(item, tuple) and len(item) == 2:
+                        row, ip = item
+                    else:
+                        # Tupla de DB: IP está en posición 10
+                        row = dispositivos_data.index(item)
+                        ip = item[10]
+                    
+                    tareas.append(ping_dispositivo(row, ip))
                 
                 # Ejecutar todos los pings en paralelo
                 resultados = await asyncio.gather(*tareas, return_exceptions=True)
@@ -335,29 +343,30 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         
         # Ejecutar en hilo separado
         def callback_estados(resultados):
-            # Actualizar UI con resultados (estamos en el thread principal ahora)
+            # Actualizar UI con resultados (estamos en el thread principal)
             for resultado in resultados:
                 if isinstance(resultado, tuple):
                     row, conectado, ip = resultado
                     estado_item = self.ui.tableDispositivos.item(row, 0)
                     
-                    if estado_item:  # Verificar que existe
+                    if estado_item:
                         if ip == "sin_ip":
-                            estado_item.setText("[?] Sin IP")
-                            estado_item.setBackground(QBrush(QColor(200, 200, 200)))
+                            actualizar_estado_item(estado_item, 'sin_ip')
                         elif conectado:
-                            estado_item.setText("Encendido")
-                            estado_item.setBackground(QBrush(QColor(150, 255, 150)))
+                            actualizar_estado_item(estado_item, 'encendido')
                         else:
-                            estado_item.setText("Apagado")
-                            estado_item.setBackground(QBrush(QColor(255, 200, 200)))
+                            actualizar_estado_item(estado_item, 'apagado')
             
-            print(f">> Verificación de estados completada")
+            # Mensaje solo si verbose=True
+            if verbose:
+                print(f">> Verificación de estados completada")
         
         self.hilo_verificacion = Hilo(verificar_estados)
         self.hilo_verificacion.terminado.connect(callback_estados)
         self.hilo_verificacion.start()
-        print(">> Verificando estado de conexión de dispositivos...")
+        
+        if verbose:
+            print(">> Verificando estado de conexión de dispositivos...")
     
     def on_consulta_progreso(self, datos):
         """Callback para actualizar estado en tiempo real durante escaneo y consulta de dispositivos"""
@@ -404,12 +413,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 estado_item = self.ui.tableDispositivos.item(row, 0)
                 
                 if estado_item:
-                    if activo:
-                        estado_item.setText("Encendido")
-                        estado_item.setBackground(QBrush(QColor(150, 255, 150)))
-                    else:
-                        estado_item.setText("Apagado")
-                        estado_item.setBackground(QBrush(QColor(255, 200, 200)))
+                    actualizar_estado_item(estado_item, 'encendido' if activo else 'apagado')
             
             # Mostrar progreso en consola (solo cada 10 dispositivos para no saturar)
             if index is not None and total is not None and (index % 10 == 0 or index == total):
@@ -503,45 +507,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.labelInfoDiscoValue.setText('-')
         self.ui.labelUltimoCambioFecha.setText('Fecha: -')
         self.ui.textEditUltimoCambio.setPlainText('Seleccione un dispositivo para ver los cambios...')
-
-    def on_action_detener(self):
-        """Handler para la action 'actiondetener' (DEPRECATED - broadcasts eliminados).
-
-        Esta función ya no hace nada - los anuncios UDP fueron eliminados.
-        """
-        self.ui.statusbar.showMessage('Funcion deprecated - broadcasts eliminados', 3000)
-        print('[INFO] on_action_detener() deprecated - sistema ya no usa broadcasts')
-
-    def on_action_iniciar(self):
-        """Handler para iniciar servidor (DEPRECATED - ya no hay anuncios).
-
-        Esta función ya no hace nada - los anuncios UDP fueron eliminados.
-        """
-        self.ui.statusbar.showMessage('Funcion deprecated - broadcasts eliminados', 3000)
-        print('[INFO] on_action_iniciar() deprecated - sistema ya no usa broadcasts')
-
-    def set_status_indicator(self, state: str):
-        """Actualizar el semáforo de estado en la barra de estado.
-
-        state: 'green' | 'yellow' | 'red' | 'gray'
-        """
-        indicator = getattr(self, 'status_indicator', None)
-        if not indicator:
-            return
-
-        color_map = {
-            'green': ('#37b24d', 'Anuncios periódicos activos'),
-            'yellow': ('#f59f00', 'Servidor activo (anuncios no iniciados)'),
-            'red': ('#e03131', 'Anuncios detenidos'),
-            'gray': ('#9e9e9e', 'Estado desconocido')
-        }
-
-        color, tip = color_map.get(state, color_map['gray'])
-        try:
-            indicator.setStyleSheet(f"background-color: {color}; border-radius: 7px; border: 1px solid #666;")
-            indicator.setToolTip(tip)
-        except Exception:
-            pass
     
     def habilitar_botones_detalle(self):
         """Habilita botones cuando hay selección"""
@@ -713,7 +678,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                         table.setItem(i, 0, QtWidgets.QTableWidgetItem(disco[1] or '-'))  # nombre (unidad)
                         table.setItem(i, 1, QtWidgets.QTableWidgetItem(disco[3] or '-'))  # tipo
                         table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(disco[2] or '-')))  # capacidad
-                        fecha = disco[6][:10] if disco[6] else '-'  # Solo la fecha sin hora
+                        fecha = disco[5][:10]
                         table.setItem(i, 3, QtWidgets.QTableWidgetItem(fecha))
                 else:
                     table.setRowCount(1)
@@ -820,7 +785,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                         
                         lic_item = QtWidgets.QTableWidgetItem('Activa' if lic else 'Inactiva')
                         if not lic:
-                            lic_item.setForeground(QBrush(QColor(200, 0, 0)))
+                            lic_item.setForeground(QBrush(QColor("darkred")))
                         table.setItem(i, 6, lic_item)
                         
                         table.setItem(i, 7, QtWidgets.QTableWidgetItem(ip or '-'))
@@ -847,6 +812,10 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         """
         self.ui.statusbar.showMessage("Paso 1/4: Iniciando escaneo de red...", 0)
         self.ui.btnActualizar.setEnabled(False)
+        
+        # Detener timer de verificación automática durante escaneo
+        if hasattr(self, 'timer_estados') and self.timer_estados:
+            self.timer_estados.stop()
 
         # Si existe ServerManager, delegar todo el flujo a run_full_scan
         if hasattr(self, 'server_mgr') and self.server_mgr:
@@ -910,11 +879,17 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         else:
             self.ui.statusbar.showMessage("ERROR: Error en escaneo de red", 5000)
             self.ui.btnActualizar.setEnabled(True)
+            # Reiniciar timer en caso de error
+            if hasattr(self, 'timer_estados') and self.timer_estados:
+                self.timer_estados.start(10000)
     
     def on_escaneo_error(self, error):
         """Error en Paso 1"""
         self.ui.statusbar.showMessage(f"ERROR: Error en escaneo: {error}", 5000)
         self.ui.btnActualizar.setEnabled(True)
+        # Reiniciar timer en caso de error
+        if hasattr(self, 'timer_estados') and self.timer_estados:
+            self.timer_estados.start(10000)
 
     def on_full_scan_terminado(self, resultado):
         """Handler para cuando ServerManager.run_full_scan finaliza.
@@ -937,6 +912,10 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         # Recargar tabla SIN verificar ping (estados ya actualizados por escaneo)
         self.cargar_dispositivos(verificar_ping=False)
         self.ui.btnActualizar.setEnabled(True)
+        
+        # Reiniciar timer de verificación automática
+        if hasattr(self, 'timer_estados') and self.timer_estados:
+            self.timer_estados.start(10000)
     
     def poblar_db_desde_csv(self):
         """Paso 2: Lee CSV y crea registros básicos en DB (solo IP/MAC)"""
@@ -1028,6 +1007,10 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.statusbar.showMessage(">> Escaneo completo finalizado exitosamente", 5000)
         self.ui.btnActualizar.setEnabled(True)
         print(">> Proceso completado\n")
+        
+        # Reiniciar timer de verificación automática
+        if hasattr(self, 'timer_estados') and self.timer_estados:
+            self.timer_estados.start(10000)
 
 
 

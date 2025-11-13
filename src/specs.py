@@ -43,7 +43,11 @@ def escuchar_solicitudes(port=5256):
                     
                     if data == "GET_SPECS":
                         print("[PROCESO] Recopilando especificaciones...")
-                        informe()
+                        
+                        # Usar función compartida que incluye informe + DirectX
+                        from logica.logica_specs import preparar_datos_completos
+                        preparar_datos_completos()
+                        
                         print("[OK] Datos recopilados")
                         
                         json_data = dumps(new, ensure_ascii=False)

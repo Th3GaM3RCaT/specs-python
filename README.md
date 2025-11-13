@@ -1,11 +1,28 @@
-# (en desarrollo)
-# Sistema de Inventario de Hardware en Red
+# Sistema de Inventario de Hardware en Red - SpecsNet
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue.svg)](https://www.microsoft.com/windows)
 
-Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red, almacena la información en una base de datos SQLite y presenta una interfaz gráfica para visualización y gestión. 
+Sistema cliente-servidor para Windows que recopila especificaciones de hardware/software de equipos en red mediante **consultas directas TCP**, almacena la información en una base de datos SQLite y presenta una interfaz gráfica para visualización y gestión.
+
+**Arquitectura:** El servidor **solicita activamente** los datos a cada cliente mediante conexión TCP directa (no se usan broadcasts UDP). Cada cliente ejecuta un daemon que escucha en puerto 5256 y responde a comandos.
+
+---
+
+## ✨ Características Principales
+
+- 🔄 **Consultas Directas TCP**: Servidor solicita activamente datos a cada cliente (sin broadcasts UDP)
+- ⚡ **Escaneo Paralelo**: Procesa hasta 50 dispositivos simultáneamente con `asyncio`
+- 🔍 **Discovery Inteligente**: Combina SSDP/mDNS + ping sweep (detecta dispositivos que no responden a multicast)
+- 🔐 **Autenticación por Token**: Seguridad basada en tokens con expiración de 5 minutos
+- 📊 **UI en Tiempo Real**: Actualiza estados cada 10 segundos automáticamente (sin mensajes)
+- 🔢 **Ordenamiento Numérico**: IPs ordenadas correctamente (10.100.1.12 < 10.100.1.110)
+- 🎯 **Estados Visuales**: Colores en tabla (🟢 Encendido, 🔴 Apagado, ⚪ Sin IP)
+- 💾 **SQLite Normalizado**: Schema completo con 8+ tablas relacionadas
+- 🛡️ **Thread-Safe**: Operaciones DB seguras desde múltiples hilos
+- 🚀 **Ejecución en Segundo Plano**: Cliente daemon sin intervención del usuario
+
 ---
 
 ## 📑 Índice
@@ -124,45 +141,54 @@ cd specs-python
 ### Ejecución
 
 ```powershell
-# Iniciar servidor
+# Iniciar servidor (UI de gestión + servidor TCP)
 python run_servidor.py
 
-# Iniciar cliente (GUI - 2 botones: Enviar/Cancelar)
+# Iniciar cliente daemon en segundo plano (escucha en puerto 5256)
 python run_cliente.py
-
-# Iniciar cliente (modo tarea silencioso)
-python src\specs.py --tarea
 ```
+
+**Nota:** El servidor solicita activamente los datos a cada cliente. No es necesario que el cliente "envíe" manualmente - el daemon responde automáticamente a las solicitudes del servidor.
 
 ## Arquitectura del Sistema
 
-### 1. **Cliente (`src/specs.py`)**
-Aplicación que se ejecuta en cada equipo de la red para recopilar y enviar información.
+### 1. **Cliente (`src/specs.py` + `cliente_daemon.py`)**
+Daemon que se ejecuta en cada equipo de la red y **responde a solicitudes del servidor**.
 
-#### Modos de Ejecución:
-- **Modo GUI** (por defecto): `python run_cliente.py`
-  - Interfaz gráfica simple con 2 botones: Enviar y Cancelar
-  - Ejecuta manualmente el informe
-  
-- **Modo Tarea**: `python src\specs.py --tarea`
+#### Modo de Ejecución:
+- **Daemon TCP** (puerto `5256`): `python run_cliente.py` o `python cliente_daemon.py`
   - Se ejecuta en segundo plano
-  - Escucha broadcasts del servidor en puerto `37020`
-  - Responde automáticamente enviando sus datos
+  - Escucha conexiones TCP en puerto 5256
+  - Responde a comandos:
+    - `PING`: Confirma que está vivo (`{'status': 'alive'}`)
+    - `GET_SPECS`: Recopila y envía especificaciones completas en JSON
 
-#### Datos Recopilados:
+#### Datos Recopilados (al recibir GET_SPECS):
 - **Hardware**: Serial, Modelo, Procesador, GPU, RAM, Disco
 - **Sistema**: Nombre del equipo, Usuario, MAC Address, IP
 - **Software**: Aplicaciones instaladas, Estado de licencia Windows
 - **Diagnóstico**: Reporte DirectX completo (dxdiag)
 
-### 2. **Servidor (`src/servidor.py` + `src/logica/logica_servidor.py`)**
-Aplicación central que recibe datos de clientes y los almacena en la base de datos.
+### 2. **Servidor (`src/mainServidor.py` + `src/logica/logica_servidor.py`)**
+Aplicación central que **solicita activamente** datos a los clientes y los almacena en la base de datos.
 
 #### Componentes:
-- **Servidor TCP** (puerto `5255`): Recibe JSON de clientes
-- **Broadcast UDP** (puerto `37020`): Anuncia presencia en la red
-- **Base de Datos**: SQLite (`specs.db`)
+- **Servidor TCP** (puerto `5255`): Recibe conexiones **pasivas** de clientes (deprecado, legacy)
+- **Cliente TCP** (puerto `5256`): **Solicita activamente** datos a cada cliente daemon
+- **Base de Datos**: SQLite (`data/specs.db`)
 - **Procesamiento**: Parsea JSON y DirectX, guarda en tablas normalizadas
+- **UI de Gestión**: Interfaz gráfica con tabla de dispositivos y funciones de administración
+
+#### Flujo de Consulta:
+1. **Escaneo de red** → Descubre IPs con `optimized_block_scanner.py`
+2. **Para cada IP descubierta**:
+   - Servidor **conecta** a `IP:5256`
+   - Envía comando `GET_SPECS`
+   - Recibe JSON completo
+   - Guarda en base de datos
+3. **Verificación automática** cada 10 segundos:
+   - Ping silencioso a todos los dispositivos
+   - Actualiza estados (Encendido/Apagado) en UI
 
 #### Tablas de la Base de Datos:
 - `Dispositivos`: Información principal del equipo
@@ -179,10 +205,16 @@ UI para visualizar y administrar el inventario de dispositivos.
 
 #### Características:
 - **Tabla de Dispositivos**: Muestra todos los equipos registrados
-  - Estado (Encendido/Apagado/Inactivo)
+  - **Estado** (🟢 Encendido / 🔴 Apagado / ⚪ Sin IP)
   - DTI, Serial, Usuario, Modelo
   - Procesador, GPU, RAM, Disco
   - Estado de licencia, IP
+  - **Ordenamiento numérico de IPs** (10.100.1.12 < 10.100.1.110)
+  
+- **Actualización Automática**:
+  - Timer cada **10 segundos** verifica estados (ping silencioso)
+  - **NO muestra mensajes** en barra de estado
+  - Timer se **pausa durante escaneo completo** (evita conflictos)
   
 - **Filtros y Búsqueda**:
   - Buscar por cualquier campo
@@ -195,55 +227,126 @@ UI para visualizar y administrar el inventario de dispositivos.
   - Módulos de memoria RAM
   - Historial de cambios
 
-### 4. **Escaneo de Red (`optimized_block_scanner.py`)**
+- **Botón "Actualizar"** (Escaneo Completo):
+  1. Escanea red completa (`optimized_block_scanner.py`)
+  2. Pobla DB con IPs/MACs descubiertas
+  3. **Solicita datos completos** a cada cliente activo (GET_SPECS)
+  4. Actualiza tabla con toda la información
+
+### 4. **Escaneo de Red (`src/logica/optimized_block_scanner.py`)**
 Descubre dispositivos en la red para consultar su información.
 
 #### Funcionalidad:
 - Escanea rangos `10.100.0.0/16` a `10.119.0.0/16`
-- Usa probes SSDP/mDNS + ping-sweep asíncrono
+- Usa **SSDP/mDNS probes + ping-sweep** asíncrono
+- **Siempre ejecuta ping sweep** (detecta dispositivos que no responden a multicast)
 - Parsea tabla ARP para asociar IP ↔ MAC
-- Genera CSV: `discovered_devices.csv`
+- Filtra equipos de red por OUI de MAC (switches, routers, APs)
+- Genera CSV: `output/discovered_devices.csv`
+
+#### Uso:
+```powershell
+# Escaneo completo (segmentos 100-119)
+python src\logica\optimized_block_scanner.py --start 100 --end 119 --use-broadcast-probe
+
+# Escaneo de segmento único
+python src\logica\optimized_block_scanner.py --start 100 --end 100
+```
 
 ## Flujo de Trabajo Completo
 
 ### Instalación Inicial
 
 1. **Servidor**:
-   ```bash
-   # Crear base de datos
-   sqlite3 specs.db < src/sql/specs.sql
-   
-   # Ejecutar servidor
+   ```powershell
+   # Base de datos se crea automáticamente al iniciar
    python run_servidor.py
    ```
 
-2. **Clientes**:
-   ```bash
-   # Modo manual (GUI)
-   python run_cliente.py
+2. **Clientes** (en cada equipo):
+   ```powershell
+   # Instalar dependencias
+   pip install -r requirements.txt
    
-   # Modo automático (tarea programada)
-   python src\specs.py --tarea
+   # Ejecutar daemon (se queda en segundo plano)
+   python run_cliente.py
    ```
 
-### Proceso de Recopilación de Datos
+### Proceso de Recopilación de Datos (Nueva Arquitectura)
 
 ```
-1. SERVIDOR anuncia su presencia
-   └─> Broadcast UDP: "servidor specs" → 255.255.255.255:37020
+1. SERVIDOR ejecuta escaneo de red
+   └─> optimized_block_scanner.py descubre IPs activas → CSV
 
-2. CLIENTE detecta servidor
-   └─> Escucha puerto 37020, extrae IP del sender
+2. SERVIDOR carga CSV y consulta cada dispositivo
+   └─> Para cada IP:
+       ├─> PING (verificar si está activo)
+       └─> Si activo:
+           ├─> CONECTAR a IP:5256 (cliente daemon)
+           ├─> ENVIAR comando "GET_SPECS"
+           └─> RECIBIR JSON completo
 
-3. CLIENTE recopila información
-   ├─> WMI: Serial, Modelo, Procesador, RAM
-   ├─> psutil: CPU, Memoria, Disco, Red
-   ├─> dxdiag: GPU y diagnóstico completo
-   ├─> windows_tools: Aplicaciones instaladas
-   └─> slmgr: Estado de licencia Windows
+3. CLIENTE DAEMON recibe solicitud
+   ├─> Detecta comando "GET_SPECS"
+   ├─> Recopila información:
+   │   ├─> WMI: Serial, Modelo, Procesador, RAM
+   │   ├─> psutil: CPU, Memoria, Disco, Red
+   │   ├─> dxdiag: GPU y diagnóstico completo
+   │   ├─> windows_tools: Aplicaciones instaladas
+   │   └─> slmgr: Estado de licencia Windows
+   └─> ENVÍA JSON de respuesta
 
-4. CLIENTE envía datos al servidor
-   └─> TCP connect a SERVIDOR:5255, envía JSON completo
+4. SERVIDOR procesa y almacena
+   ├─> Parsea JSON + DirectX
+   ├─> Extrae datos según esquema de DB
+   ├─> Inserta/actualiza en tablas:
+   │   ├─ Dispositivos (info principal)
+   │   ├─ activo (estado - 1 registro por dispositivo)
+   │   ├─ memoria (módulos RAM)
+   │   ├─ almacenamiento (discos)
+   │   ├─ aplicaciones (software)
+   │   └─ informacion_diagnostico (reportes completos)
+   └─> Commit a SQLite
+
+5. INTERFAZ muestra datos actualizados
+   ├─> Consulta DB y presenta en tabla con colores
+   └─> Timer cada 10s verifica estados (silencioso)
+```
+
+### Escaneo y Descubrimiento Masivo
+
+```
+1. Usuario hace clic en "Actualizar" en UI del servidor
+
+2. PASO 1/4: ESCANEO DE RED
+   └─> optimized_block_scanner.py escanea 10.100.x.x - 10.119.x.x
+       ├─ Probes SSDP/mDNS (para dispositivos que respondan multicast)
+       ├─ Ping sweep (SIEMPRE - para dispositivos que solo responden ICMP)
+       └─ Parsea ARP para obtener MACs
+
+3. PASO 2/4: GENERAR CSV
+   └─> output/discovered_devices.csv
+       ├─ Formato: IP,MAC
+       ├─ 10.100.2.150,00:4e:01:99:97:11
+       └─ ~305 dispositivos (filtrados por OUI de computadoras)
+
+4. PASO 3/4: POBLAR DB INICIAL
+   └─> Inserta registros básicos (IP/MAC) en tabla Dispositivos
+
+5. PASO 4/4: CONSULTAR DISPOSITIVOS (PARALELO)
+   └─> Para cada IP en CSV:
+       ├─ Ping asíncrono (timeout 1s)
+       ├─ Si responde:
+       │   ├─ Conectar a IP:5256
+       │   ├─ Enviar GET_SPECS
+       │   ├─ Recibir JSON completo (timeout 10s)
+       │   └─ Guardar en DB
+       └─ Actualizar estado en tabla 'activo'
+
+6. FINALIZAR
+   └─> UI recarga tabla con datos completos
+       └─> Timer de 10s reanuda verificación automática
+```
 
 5. SERVIDOR procesa y almacena
    ├─> Parsea JSON + DirectX
@@ -436,12 +539,16 @@ Esto mostrará la ventana de consola con los errores de Python.
 
 ## Configuración de Puertos
 
-| Puerto | Protocolo | Uso |
-|--------|-----------|-----|
-| `5255` | TCP | Recepción de datos de clientes |
-| `37020` | UDP | Broadcast de descubrimiento |
+| Puerto | Protocolo | Uso | Dirección |
+|--------|-----------|-----|-----------|
+| `5256` | TCP | Cliente daemon (escucha solicitudes del servidor) | Clientes |
+| `5255` | TCP | Servidor legacy (recepción pasiva - deprecado) | Servidor |
 
-**Importante**: Firewall debe permitir estos puertos.
+**Nueva Arquitectura:**
+- **Cliente**: Escucha en puerto `5256` esperando comandos (PING, GET_SPECS)
+- **Servidor**: Actúa como cliente TCP, conectándose a cada `IP:5256` para solicitar datos
+
+**Importante**: Firewall en **clientes** debe permitir entrada TCP en puerto `5256`.
 
 ## Dependencias
 
@@ -472,38 +579,57 @@ sqlite3         # Base de datos (incluido en Python)
 
 ## Mejoras Futuras
 
-1. **Autenticación**: Tokens o certificados para clientes
+1. ~~**Autenticación**: Tokens o certificados para clientes~~ ✅ **IMPLEMENTADO** (security_config.py)
 2. **Encriptación**: TLS/SSL para comunicación TCP
-3. **Discovery Robusto**: mDNS/Zeroconf en lugar de broadcasts
+3. ~~**Discovery Robusto**: Eliminados broadcasts UDP~~ ✅ **IMPLEMENTADO** (consultas directas)
 4. **API REST**: Para integración con otros sistemas
 5. **Mapa de Red**: Visualización con NetworkX/Graphviz
-6. **Alertas**: Notificaciones cuando dispositivos caen
+6. ~~**Alertas**: Notificaciones cuando dispositivos caen~~ ⚠️ **PARCIAL** (timer cada 10s verifica estados)
 7. **Reportes**: Exportar a Excel, PDF
 8. **Multi-servidor**: Replicación y alta disponibilidad
+9. ~~**Escaneo Eficiente**: Ping sweep + probes~~ ✅ **IMPLEMENTADO** (optimized_block_scanner.py)
+10. ~~**UI Updates en Tiempo Real**~~ ✅ **IMPLEMENTADO** (timer 10s + ordenamiento numérico IPs)
 
 ## Troubleshooting
 
-### Cliente no encuentra servidor
-- Verificar firewall (puerto 37020 UDP)
-- Confirmar que están en la misma subnet
-- Ejecutar cliente en modo `--tarea` para escuchar broadcasts
+### Cliente daemon no arranca
+- Verificar que puerto `5256` no esté en uso: `netstat -an | findstr 5256`
+- Ejecutar con permisos de administrador si es necesario
+- Revisar logs en consola para errores de dependencias
 
-### Servidor no recibe datos
-- Verificar puerto 5255 TCP abierto
-- Ver logs en consola del servidor
-- Confirmar que `specs.db` existe y tiene permisos de escritura
+### Servidor no obtiene datos de cliente
+- **Verificar que cliente daemon esté ejecutándose**: `python run_cliente.py`
+- Verificar firewall en **cliente** permite entrada TCP puerto `5256`
+- Probar conexión manual: `python test_solicitar_cliente.py`
+- Confirmar IP del cliente está en CSV de escaneo
+
+### Escaneo completo no detecta dispositivos
+- Verificar que dispositivos respondan a ping: `ping 10.100.x.x`
+- Scanner siempre ejecuta ping sweep (detecta incluso sin respuesta a multicast)
+- Revisar CSV generado en `output/discovered_devices.csv`
+- Confirmar que MACs no están en lista de OUIs de equipos de red
+
+### Estados no se actualizan automáticamente
+- Timer se ejecuta cada 10 segundos (verificación silenciosa)
+- Timer se **pausa durante escaneo completo** (comportamiento esperado)
+- Revisar consola para errores en ping asíncrono
 
 ### Errores de encoding en DirectX
 - Asegurar que `dxdiag_output.txt` se lee con `encoding='cp1252'`
+- **NO usar emojis** en código Python (causa UnicodeEncodeError en Windows)
 
 ### DB locked error
-- Solo una instancia del servidor debe acceder a `specs.db`
+- Solo una instancia del servidor debe acceder a `data/specs.db`
+- Usar `get_thread_safe_connection()` para operaciones multi-thread
 - Cerrar conexiones después de commits
-- Usar `connection.commit()` después de escrituras
+
+### Tabla "activo" con registros duplicados
+- **Patrón correcto**: `DELETE` antes de `INSERT` (mantiene 1 registro por dispositivo)
+- Verificar que código usa: `DELETE WHERE Dispositivos_serial = ?` antes de INSERT
 
 ## Contacto y Soporte
 
-Para reportar bugs o solicitar features, crear issue en el repositorio.
+Para reportar bugs o solicitar features, crear issue en el repositorio de GitHub.
 
 ---
 

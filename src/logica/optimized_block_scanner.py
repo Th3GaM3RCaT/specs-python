@@ -14,31 +14,30 @@ Ejemplo:
 import argparse
 import asyncio
 import ipaddress
-import socket
-import subprocess
-import re
 import csv
-import sys
-import select
-import time
 import os
+import platform
+import subprocess
+import sys
+from socket import socket as sckt, AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR, IPPROTO_UDP, IPPROTO_IP, IP_MULTICAST_TTL
+from select import select as select_func
 from pathlib import Path
 from itertools import islice
 from logica.ping_utils import ping_host
-import platform
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from logica.arp_utils import parse_arp_table
+from concurrent.futures import ThreadPoolExecutor, as_completed as futures_as_completed
 
 # ------------------ SUBPROCESS HELPER (Windows-safe) ------------------
 def _run_hidden(cmd, **kwargs):
     """
-    Ejecuta subprocess.run() ocultando ventanas CMD en Windows.
+    Ejecuta subprocess_run() ocultando ventanas CMD en Windows.
     
     Args:
         cmd: Lista de comandos (ej: ["ping", "-n", "1", "8.8.8.8"])
-        **kwargs: Argumentos adicionales para subprocess.run()
+        **kwargs: Argumentos adicionales para subprocess_run()
     
     Returns:
-        subprocess.CompletedProcess
+        CompletedProcess
     """
     if platform.system() == "Windows":
         # CREATE_NO_WINDOW = 0x08000000
@@ -96,7 +95,7 @@ def get_private_supernets():
     ]
 
 def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s = sckt(AF_INET, SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
@@ -116,10 +115,10 @@ def probe_ssdp(segment_network, iface_ip=None, timeout=1.0, use_broadcast=True):
     results = set()
     sock_list = []
     try:
-        msock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        msock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        msock = sckt(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        msock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         try:
-            msock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
+            msock.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 1)
         except Exception:
             pass
         if iface_ip:
@@ -138,8 +137,8 @@ def probe_ssdp(segment_network, iface_ip=None, timeout=1.0, use_broadcast=True):
         if use_broadcast:
             try:
                 baddr = str(segment_network.broadcast_address)
-                bsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                bsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                bsock = sckt(AF_INET, SOCK_DGRAM)
+                bsock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
                 try:
                     bsock.bind((iface_ip, 0))
                 except Exception:
@@ -158,7 +157,7 @@ def probe_ssdp(segment_network, iface_ip=None, timeout=1.0, use_broadcast=True):
             remaining = start + timeout - time.time()
             if remaining <= 0:
                 break
-            rlist, _, _ = select.select(sock_list, [], [], remaining)
+            rlist, _, _ = select_func(sock_list, [], [], remaining)
             if not rlist:
                 continue
             for s in rlist:
@@ -179,10 +178,10 @@ def probe_mdns(segment_network, iface_ip=None, timeout=1.0):
     """Síncrono: pequeño probe mDNS. Devuelve set IPs."""
     results = set()
     try:
-        msock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        msock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        msock = sckt(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        msock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         try:
-            msock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
+            msock.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 1)
         except Exception:
             pass
         if iface_ip:
@@ -200,7 +199,7 @@ def probe_mdns(segment_network, iface_ip=None, timeout=1.0):
             remaining = start + timeout - time.time()
             if remaining <= 0:
                 break
-            rlist, _, _ = select.select([msock], [], [], remaining)
+            rlist, _, _ = select_func([msock], [], [], remaining)
             if not rlist:
                 continue
             for s in rlist:
@@ -268,38 +267,6 @@ async def ping_sweep_chunked(network, chunk_size, per_host_timeout, per_subnet_t
                     t.cancel()
         processed += len(chunk)
     return sorted(set(alive), key=lambda s: tuple(int(x) for x in s.split(".")))
-
-# ------------------ ARP PARSING ------------------
-def parse_arp_table(): # type: ignore
-    entries = []
-    try:
-        proc = _run_hidden(["ip", "neigh"], capture_output=True, text=True, check=False)
-        out = (proc.stdout or "") + (proc.stderr or "")
-        if out.strip():
-            for line in out.splitlines():
-                m = re.search(r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3}).*(lladdr|at)\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
-                if m:
-                    entries.append((m.group("ip"), m.group("mac").lower()))
-            if entries:
-                return entries
-    except Exception:
-        pass
-    # fallback arp -a
-    try:
-        proc2 = _run_hidden(["arp", "-a"], capture_output=True, text=True, check=False)
-        out2 = (proc2.stdout or "") + (proc2.stderr or "")
-        for line in out2.splitlines():
-            m2 = re.search(r'\((?P<ip>\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
-            if m2:
-                entries.append((m2.group("ip"), m2.group("mac").lower()))
-    except Exception:
-        pass
-    # normalize dict
-    d = {}
-    for ip, mac in entries:
-        if mac:
-            d[ip] = mac.lower()
-    return list(d.items())
 
 # ------------------ BLOCK PATTERNS ------------------
 # Blocks are tuples (start_ip_inclusive, end_ip_inclusive) defined inside each /16.
@@ -415,15 +382,13 @@ async def scan_blocks(start, end, chunk_size, per_host_timeout, per_subnet_timeo
                 if found_ips:
                     print(f"     probe found {len(found_ips)} hosts (examples: {list(found_ips)[:6]})")
                     all_alive.update(found_ips)
-                    continue  # skip sweep if probe returned results
+                    # NO hacer continue - hacer ping sweep adicional para encontrar dispositivos que no responden a probes
 
-            # if no probe hits, do limited chunked sweep on block (not entire /24 unless block is big)
-            # but limit total addresses we will sweep to reasonable counts
+            # Hacer ping sweep en el bloque (complementa los probes)
             num_hosts = b.num_addresses - 2
             if num_hosts <= 0:
                 continue
-            # build a temporary network for sweep: use the block as-is
-            # but skip if block too large
+            # Saltar si el bloque es muy grande
             if num_hosts > 4096:
                 print(f"     skipping sweep of {b} (too large: {num_hosts} hosts)")
                 continue
@@ -469,9 +434,6 @@ def parse_args():
     p.add_argument("--csv", action="store_true", help="save CSV (default: yes)")
     return p.parse_args()
 
-def parse_arp_table():
-    # wrapper: reuse parse_arp_table from previous patterns
-    return parse_arp_table_raw_fallback()
 def is_computer_mac(mac):
     """Determina si una MAC pertenece a un dispositivo tipo computadora."""
     if not mac:
@@ -573,35 +535,6 @@ def is_computer_mac(mac):
     # Por defecto, si no sabemos, asumimos que SÍ es computadora
     # (esto incluirá PCs genéricas/clones con NICs no identificados)
     return True
-def parse_arp_table_raw_fallback():
-    entries = []
-    try:
-        proc = _run_hidden(["ip", "neigh"], capture_output=True, text=True, check=False)
-        out = (proc.stdout or "") + (proc.stderr or "")
-        if out.strip():
-            for line in out.splitlines():
-                m = re.search(r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3}).*(lladdr|at)\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
-                if m:
-                    entries.append((m.group("ip"), m.group("mac").lower()))
-            if entries:
-                return entries
-    except Exception:
-        pass
-    try:
-        proc2 = _run_hidden(["arp", "-a"], capture_output=True, text=True, check=False)
-        out2 = (proc2.stdout or "") + (proc2.stderr or "")
-        for line in out2.splitlines():
-            m2 = re.search(r'\((?P<ip>\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
-            if m2:
-                entries.append((m2.group("ip"), m2.group("mac").lower()))
-    except Exception:
-        pass
-    d = {}
-    for ip, mac in entries:
-        if mac:
-            d[ip] = mac.lower()
-    return list(d.items())
-
 
 def update_csv_with_macs(
     input_csv_path,
@@ -672,7 +605,7 @@ def update_csv_with_macs(
         print(f"Pinging {len(missing_ips)} IPs (timeout={ping_timeout}s, workers={workers}) to populate ARP...")
         with ThreadPoolExecutor(max_workers=min(workers, len(missing_ips))) as ex:
             futures = {ex.submit(_ping_ip_sync, ip, ping_timeout): ip for ip in missing_ips}
-            for fut in as_completed(futures):
+            for fut in futures_as_completed(futures):
                 ip = futures[fut]
                 try:
                     ok = fut.result()
@@ -683,9 +616,9 @@ def update_csv_with_macs(
     
     # 4) Re-parsear tabla ARP
     try:
-        arp_entries = parse_arp_table_raw()
+        arp_entries = parse_arp_table()
     except Exception as e:
-        print(f"Warning: parse_arp_table_raw() falló: {e}")
+        print(f"Warning: parse_arp_table() falló: {e}")
         arp_entries = []
     
     arp_map = {ip: mac.lower() for ip, mac in arp_entries if mac}
@@ -788,47 +721,6 @@ def _ping_ip_sync(ip: str, timeout: float = 1.0) -> bool:
         return proc.returncode == 0
     except Exception:
         return False
-    
-def parse_arp_table_raw():
-    """
-    Parsea la tabla ARP del sistema operativo.
-    Retorna lista de tuplas: [(ip, mac), ...]
-    """
-    try:
-        proc = _run_hidden(["arp", "-a"], capture_output=True, text=True, check=False)
-        out = proc.stdout + proc.stderr
-    except Exception:
-        out = ""
-    
-    lines = out.splitlines()
-    entries = []
-    
-    for line in lines:
-        # Formato Unix/macOS: (192.168.1.1) at aa:bb:cc:dd:ee:ff
-        m = re.search(r'\((?P<ip>\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+(?P<mac>[0-9a-fA-F:]{11,17})', line)
-        if m:
-            entries.append((m.group("ip"), m.group("mac").lower()))
-            continue
-        
-        # Formato Windows: 192.168.1.1  aa-bb-cc-dd-ee-ff
-        m2 = re.search(r'^(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+(?P<mac>[0-9a-fA-F:-]{11,17})', line.strip())
-        if m2:
-            mac = m2.group("mac").replace('-', ':').lower()
-            entries.append((m2.group("ip"), mac))
-            continue
-        
-        # Formato genérico con MAC
-        m3 = re.search(r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3}).*(?P<mac>[0-9a-fA-F:]{11,17})', line)
-        if m3:
-            entries.append((m3.group("ip"), m3.group("mac").replace('-', ':').lower()))
-            continue
-        
-        # Solo IP sin MAC
-        m4 = re.search(r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3})', line)
-        if m4:
-            entries.append((m4.group("ip"), None))
-    
-    return entries
 
 # ------------------ ENTRYPOINT ------------------
 def main(callback_progreso=None):
@@ -959,7 +851,7 @@ def main(callback_progreso=None):
             overwrite=False
         )
         
-        print(f"✓ CSV actualizado: '{CSV_FILENAME}'")
+        print(f"[OK] CSV actualizado: '{CSV_FILENAME}'")
         print(f"   - Total dispositivos: {result['total_rows']}")
         print(f"   - MACs encontradas: {result['mac_found']}")
         print(f"   - Sin MAC: {result['mac_missing']}")

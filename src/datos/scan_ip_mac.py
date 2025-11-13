@@ -1,51 +1,36 @@
 """
 Módulo unificado para escaneo de red y resolución MAC.
-Combina funcionalidades de ping sweep, parseo de tabla ARP y actualización de CSVs.
 """
 
 import asyncio
 import ipaddress
-import platform
-import socket
-import subprocess
-import re
-import os
 import csv
 import time
+import os
+import platform
+from subprocess import run, DEVNULL
 from datetime import datetime
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from logica.ping_utils import ping_host
+from logica.network_utils import get_local_network
+from logica.arp_utils import parse_arp_table
 
-ASSUME_CIDR = "/16"   # ajusta si tu red no es /24
+ASSUME_CIDR = "/16"
 CONCURRENCY = 300
 
-# Directorio para archivos de salida
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-def get_local_network():
-    """Detecta la red local basándose en la IP del equipo."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    return ipaddress.ip_network(ip + ASSUME_CIDR, strict=False)
-
-async def ping_one(host):
-    """Wrapper que reutiliza el utilitario centralizado de ping."""
-    return await ping_host(host, 1.0)
 
 async def ping_sweep(network, concurrency=200):
-    """Escanea toda una red con pings asíncronos concurrentes."""
+    """Escanea red con pings asíncronos concurrentes."""
     sem = asyncio.Semaphore(concurrency)
     alive = []
     
     async def worker(ip):
         async with sem:
-            ok = await ping_one(str(ip))
+            ok = await ping_host(str(ip), 1.0)
             if ok:
                 alive.append(str(ip))
     
@@ -74,10 +59,10 @@ def _ping_ip_sync(ip: str, timeout: float = 1.0) -> bool:
     else:
         cmd = ["ping", "-c", "1", "-W", str(int(max(1, timeout))), ip]
     try:
-        proc = subprocess.run(
+        proc = run(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=DEVNULL,
+            stderr=DEVNULL,
             check=False
         )
         return proc.returncode == 0
@@ -85,39 +70,6 @@ def _ping_ip_sync(ip: str, timeout: float = 1.0) -> bool:
         return False
 
 
-def parse_arp_table_raw():
-    """
-    Parsea la tabla ARP del sistema operativo.
-    Retorna lista de tuplas: [(ip, mac), ...]
-    """
-    try:
-        proc = subprocess.run(["arp", "-a"], capture_output=True, text=True, check=False)
-        out = proc.stdout + proc.stderr
-    except Exception:
-        out = ""
-    
-    lines = out.splitlines()
-    entries = []
-    
-    for line in lines:
-        m2 = re.search(r'^(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+(?P<mac>[0-9a-fA-F:-]{11,17})', line.strip())
-        if m2:
-            mac = m2.group("mac").replace('-', ':').lower()
-            entries.append((m2.group("ip"), mac))
-            continue
-        
-        # Formato genérico con MAC
-        m3 = re.search(r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3}).*(?P<mac>[0-9a-fA-F:]{11,17})', line)
-        if m3:
-            entries.append((m3.group("ip"), m3.group("mac").replace('-', ':').lower()))
-            continue
-        
-        # Solo IP sin MAC
-        m4 = re.search(r'(?P<ip>\d{1,3}(?:\.\d{1,3}){3})', line)
-        if m4:
-            entries.append((m4.group("ip"), None))
-    
-    return entries
 def is_broadcast_ip(ip_obj, network):
     """Verifica si una IP es broadcast (255.255.255.255 o broadcast de la red)."""
     if str(ip_obj) == "255.255.255.255":
@@ -285,9 +237,9 @@ def update_csv_with_macs(
     
     # 4) Re-parsear tabla ARP
     try:
-        arp_entries = parse_arp_table_raw()
+        arp_entries = parse_arp_table()
     except Exception as e:
-        print(f"Warning: parse_arp_table_raw() falló: {e}")
+        print(f"Warning: parse_arp_table() falló: {e}")
         arp_entries = []
     
     arp_map = {ip: mac.lower() for ip, mac in arp_entries if mac}
@@ -372,7 +324,7 @@ def main():
     except Exception as e:
         pass
     
-    raw = parse_arp_table_raw()
+    raw = parse_arp_table()
     kept, discarded = filter_entries(raw, network)
     
     csv_name = OUTPUT_DIR / f"scan_clean_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"

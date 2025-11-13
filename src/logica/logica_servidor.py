@@ -7,12 +7,14 @@ from pathlib import Path
 from datetime import datetime
 import csv
 import re
+import asyncio
 
 from PySide6.QtWidgets import QApplication
 from logica.logica_Hilo import Hilo
 from sql import ejecutar_sql as sql
 from logica import optimized_block_scanner as scan
 from logica.ping_utils import ping_host
+from logica.async_utils import run_async
 
 # Importar configuración de seguridad
 from typing import Callable, Optional
@@ -277,7 +279,7 @@ def parsear_datos_dispositivo(json_data):
     if dxdiag_txt:
         # SECURITY: Limitar tamaño del campo dxdiag (puede ser MB de texto)
         if len(dxdiag_txt) > 1024 * 100:  # Máximo 100 KB
-            print(f"⚠️  WARNING: dxdiag_output_txt truncado ({len(dxdiag_txt)} bytes)")
+            print(f"[WARN] dxdiag_output_txt truncado ({len(dxdiag_txt)} bytes)")
             dxdiag_txt = dxdiag_txt[:1024 * 100]
         
         # Buscar Processor
@@ -358,7 +360,7 @@ def parsear_modulos_ram(json_data):
         velocidad = json_data.get("Velocidad_MHz", 0)
         etiqueta = json_data.get("Etiqueta", f"Módulo {i}")
         
-        # (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
+        # Schema memoria: (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
         modulos.append((
             serial,
             etiqueta,
@@ -459,14 +461,14 @@ def consultar_informacion(conn, addr):
         
         # Validar IP permitida
         if not is_ip_allowed(client_ip):
-            print(f"⚠️  SECURITY: IP bloqueada (no está en whitelist): {client_ip}")
+            print(f"[SECURITY] IP bloqueada (no esta en whitelist): {client_ip}")
             conn.close()
             return
         
         # Limitar conexiones por IP
         current_connections = connections_per_ip.get(client_ip, 0)
         if current_connections >= MAX_CONNECTIONS_PER_IP:
-            print(f"⚠️  SECURITY: Demasiadas conexiones desde {client_ip} ({current_connections})")
+            print(f"[SECURITY] Demasiadas conexiones desde {client_ip} ({current_connections})")
             conn.close()
             return
         
@@ -487,7 +489,7 @@ def consultar_informacion(conn, addr):
             
             # SECURITY: Verificar tamaño de buffer
             if len(buffer) > MAX_BUFFER_SIZE:
-                print(f"⚠️  SECURITY: Buffer excedido desde {client_ip} ({len(buffer)} bytes)")
+                print(f"[SECURITY] Buffer excedido desde {client_ip} ({len(buffer)} bytes)")
                 break
             
             # Intentar decodificar y parsear cuando tengamos datos completos
@@ -498,14 +500,14 @@ def consultar_informacion(conn, addr):
                 if SECURITY_ENABLED:
                     token = json_data.get("auth_token")
                     if not token:
-                        print(f"⚠️  SECURITY: Token de autenticación faltante desde {client_ip}")
+                        print(f"[SECURITY] Token de autenticacion faltante desde {client_ip}")
                         break
                     
                     if not verify_auth_token(token):
-                        print(f"⚠️  SECURITY: Token de autenticación inválido desde {client_ip}")
+                        print(f"[SECURITY] Token de autenticacion invalido desde {client_ip}")
                         break
                     
-                    print(f"✓ Token válido desde {client_ip}")
+                    print(f"[OK] Token valido desde {client_ip}")
                 
                 # Validar que tenga campos mínimos
                 if "SerialNumber" not in json_data or "MAC Address" not in json_data:
@@ -622,7 +624,7 @@ def consultar_informacion(conn, addr):
                 
                 # Commit cambios
                 sql.connection.commit()
-                print(f"✓ Datos del dispositivo {serial} guardados exitosamente")
+                print(f"[OK] Datos del dispositivo {serial} guardados exitosamente")
                 
                 # Opcional: guardar backup en JSON para debug
                 try:
@@ -757,7 +759,7 @@ def cargar_ips_desde_csv(archivo_csv=None):
                     # Filtrar IPs incompletas o inválidas
                     partes = ip.split('.')
                     if len(partes) != 4:
-                        print(f"  ⚠ IP descartada (octetos incorrectos): {ip}")
+                        print(f"   IP descartada (octetos incorrectos): {ip}")
                         invalidas += 1
                         continue
                     
@@ -767,12 +769,12 @@ def cargar_ips_desde_csv(archivo_csv=None):
                         ips_macs.append((ip, mac))
                         
                     else:
-                        print(f"  ⚠ IP descartada (formato inválido): {ip}")
+                        print(f"  [WARN] IP descartada (formato invalido): {ip}")
                         invalidas += 1
         
-        print(f"✓ Cargadas {len(ips_macs)} IPs válidas desde {archivo_csv}")
+        print(f"[OK] Cargadas {len(ips_macs)} IPs validas desde {archivo_csv}")
         if invalidas > 0:
-            print(f"  ⚠ Se descartaron {invalidas} entradas inválidas del CSV")
+            print(f"  [WARN] Se descartaron {invalidas} entradas invalidas del CSV")
         return ips_macs
     except Exception as e:
         print(f"Error leyendo CSV: {e}")
@@ -817,6 +819,169 @@ def solicitar_datos_a_cliente(ip, timeout_seg=5):
         return False
 
 
+async def solicitar_datos_cliente(client_ip, client_port=5256, timeout=30):
+    """Solicita especificaciones a un cliente específico mediante GET_SPECS (ASÍNCRONO).
+    
+    Args:
+        client_ip: IP del cliente
+        client_port: Puerto del daemon del cliente (default 5256)
+        timeout: Timeout TOTAL en segundos (default 30 para dar tiempo a recopilación de datos)
+    
+    Returns:
+        True si se recibieron datos correctamente, False en caso contrario
+    """
+    import json
+    
+    try:
+        # Conectar de forma asíncrona (timeout 10s para la conexión)
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(client_ip, client_port),
+            timeout=10.0
+        )
+        
+        # Enviar comando GET_SPECS
+        writer.write(b"GET_SPECS")
+        await writer.drain()
+        
+        # Recibir respuesta con timeout más largo
+        # El cliente puede tardar 10-30 segundos en recopilar datos
+        buffer = b""
+        start_time = asyncio.get_event_loop().time()
+        
+        while True:
+            try:
+                # Calcular tiempo restante
+                elapsed = asyncio.get_event_loop().time() - start_time
+                remaining = timeout - elapsed
+                
+                if remaining <= 0:
+                    break
+                
+                # Leer con timeout dinámico
+                chunk = await asyncio.wait_for(
+                    reader.read(4096),
+                    timeout=min(remaining, 15.0)  # Máximo 15s por chunk
+                )
+                
+                if not chunk:
+                    break
+                    
+                buffer += chunk
+                
+                # Si recibimos JSON completo
+                if buffer.endswith(b'}'):
+                    break
+                    
+            except asyncio.TimeoutError:
+                # Si ya tenemos datos, salir del loop
+                if buffer:
+                    break
+                # Si no tenemos datos, continuar esperando
+                continue
+        
+        writer.close()
+        await writer.wait_closed()
+        
+        print(f"        -> Recibidos {len(buffer)} bytes, procesando...")
+        
+        if not buffer:
+            return False
+        
+        # Decodificar JSON
+        json_data = json.loads(buffer.decode('utf-8'))
+        
+        # Validar que tenga campos mínimos
+        if "SerialNumber" not in json_data or "MAC Address" not in json_data:
+            return False
+        
+        # Procesar y guardar TODOS los datos usando funciones de ejecutar_sql.py
+        try:
+            # Crear conexión thread-safe para esta coroutine
+            thread_conn = sql.get_thread_safe_connection()
+            
+            try:
+                # Parsear datos para tabla Dispositivos
+                datos_dispositivo = parsear_datos_dispositivo(json_data)
+                serial = datos_dispositivo[0]
+                mac = datos_dispositivo[3]
+                name = datos_dispositivo[2]
+                
+                print(f"        -> Parseado: Serial={serial}, MAC={mac}, Name={name}")
+                
+                # Si el serial viene vacío, generar uno temporal basado en MAC
+                if not serial or serial.strip() == "":
+                    if mac:
+                        serial = f"TEMP_{mac.replace(':', '').replace('-', '')}"
+                    else:
+                        serial = "TEMP_UNKNOWN"
+                    datos_dispositivo = (serial,) + datos_dispositivo[1:]
+                    print(f"        -> Serial temporal generado: {serial}")
+                
+                # Limpiar datos anteriores del dispositivo
+                sql.limpiar_datos_dispositivo_threadsafe(serial, thread_conn)
+                print(f"        -> Datos anteriores limpiados")
+                
+                # Insertar/actualizar dispositivo
+                sql.setDevice_threadsafe(datos_dispositivo, thread_conn)
+                print(f"        -> Dispositivo guardado: {datos_dispositivo}")
+                
+                # Actualizar estado activo
+                sql.setActive_threadsafe((serial, True, datetime.now().isoformat()), thread_conn)
+                print(f"        -> Estado activo guardado")
+                
+                # Guardar módulos RAM
+                modulos_ram = parsear_modulos_ram(json_data)
+                print(f"        -> RAM: {len(modulos_ram)} modulos")
+                for i, modulo in enumerate(modulos_ram, 1):
+                    sql.setMemoria_threadsafe(modulo, i, thread_conn)
+                
+                # Guardar almacenamiento
+                discos = parsear_almacenamiento(json_data)
+                print(f"        -> Almacenamiento: {len(discos)} discos")
+                for i, disco in enumerate(discos, 1):
+                    sql.setAlmacenamiento_threadsafe(disco, i, thread_conn)
+                
+                # Guardar aplicaciones
+                aplicaciones = parsear_aplicaciones(json_data)
+                print(f"        -> Aplicaciones: {len(aplicaciones)} apps")
+                for app in aplicaciones:
+                    try:
+                        sql.setaplication_threadsafe(app, thread_conn)
+                    except:
+                        pass  # Continuar si alguna falla
+                
+                # Guardar informe diagnóstico completo
+                dxdiag_txt = json_data.get("dxdiag_output_txt", "")
+                json_str = dumps(json_data, indent=2)
+                sql.setInformeDiagnostico_threadsafe(
+                    (serial, json_str, dxdiag_txt, datetime.now().isoformat()),
+                    thread_conn
+                )
+                print(f"        -> Informe diagnostico guardado")
+                
+                # Commit cambios
+                thread_conn.commit()
+                print(f"        -> COMMIT exitoso")
+                
+                print(f"        -> Guardado: {name} | Serial: {serial} | IP: {client_ip}")
+                return True
+                
+            finally:
+                # Siempre cerrar la conexión
+                thread_conn.close()
+            
+        except Exception as e:
+            print(f"        -> Error guardando datos: {e}")
+            return False
+        
+    except asyncio.TimeoutError:
+        print(f"        -> Timeout conectando a {client_ip}")
+        return False
+    except Exception as e:
+        print(f"        -> Error: {e}")
+        return False
+
+
 def consultar_dispositivos_desde_csv(archivo_csv=None, callback_progreso=None):
     """
     Consulta todos los dispositivos del CSV y solicita sus datos EN PARALELO.
@@ -840,12 +1005,24 @@ def consultar_dispositivos_desde_csv(archivo_csv=None, callback_progreso=None):
     ip_to_row = {}
     
     async def ping_y_actualizar_dispositivo(ip, mac, index):
-        """Hace ping y actualiza estado en DB"""
+        """Hace ping, y si está activo solicita datos completos (GET_SPECS)"""
         try:
             # Usar utilitario centralizado de ping (timeout 1s)
             activo = await ping_host(ip, 1.0)
             
             serial = None
+            
+            # Si está activo, solicitar datos completos
+            if activo:
+                print(f"\n  [{index}/{total}] {ip} ACTIVO - Solicitando datos completos...")
+                try:
+                    resultado = await solicitar_datos_cliente(ip)
+                    if resultado:
+                        print(f"  [{index}/{total}] {ip} - [OK] Datos obtenidos y guardados")
+                    else:
+                        print(f"  [{index}/{total}] {ip} - [WARN] Cliente no respondió")
+                except Exception as e:
+                    print(f"  [{index}/{total}] {ip} - [ERROR] {e}")
             
             # Actualizar estado en DB
             try:
@@ -935,13 +1112,8 @@ def consultar_dispositivos_desde_csv(archivo_csv=None, callback_progreso=None):
         return resultados
     
     # Ejecutar consulta asíncrona
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        resultados = loop.run_until_complete(consultar_todos())
-        activos = sum(1 for r in resultados if r is True)
-    finally:
-        loop.close()
+    resultados = run_async(consultar_todos)
+    activos = sum(1 for r in resultados if r is True)
     
     print(f"\n=== Consulta finalizada: {activos}/{total} dispositivos activos ===\n")
     return activos, total
@@ -1039,12 +1211,12 @@ def monitorear_dispositivos_periodicamente(intervalo_minutos=15, callback_progre
                     
                     if esta_activo:
                         activos += 1
-                        print(f"  ✓ {ip} ({serial}): Activo")
+                        print(f"  [OK] {ip} ({serial}): Activo")
                     else:
-                        print(f"  ✗ {ip} ({serial}): Inactivo")
+                        print(f"  [X] {ip} ({serial}): Inactivo")
                     
                 except Exception as e:
-                    print(f"  ⚠ {ip} ({serial}): Error - {e}")
+                    print(f"  {ip} ({serial}): Error - {e}")
                     sql.setActive((serial, False, datetime.now().isoformat()))
             
             # Commit cambios
