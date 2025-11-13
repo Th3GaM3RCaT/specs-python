@@ -13,7 +13,7 @@ def escuchar_solicitudes(port=5256):
     Note:
         El servidor puede solicitar datos activamente conectándose a este puerto.
     """
-    from logica.logica_specs import informe, new
+    from logica.logica_specs import new
     
     print(f"[DAEMON] Cliente escuchando solicitudes en puerto {port}...")
     from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, timeout
@@ -92,14 +92,12 @@ if modo_tarea:
 
 else:
     # Modo GUI: interfaz gráfica
-    import socket
-    import time
     from logica.logica_Hilo import Hilo
     from sys import argv
     from json import dump
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import (QApplication, QLabel, QMainWindow,
-                                   QPushButton, QScrollArea, QVBoxLayout,
+                                   QVBoxLayout,
                                    QWidget)
     from ui.specs_window_ui import Ui_MainWindow
     from logica import logica_specs as lsp
@@ -185,7 +183,7 @@ else:
 
     def main():
         """Función principal para ejecutar la GUI."""
-        if "--task" in argv:
+        if "--tarea" in argv:
             print("modo tarea")
         else:
             window = MainWindow()
