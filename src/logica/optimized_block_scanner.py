@@ -2,12 +2,12 @@
 """
 optimized_block_scanner.py
 
-Escaneo optimizado por bloques dentro de segmentos 10.100.0.0/16 .. 10.119.0.0/16.
+Escaneo optimizado por bloques dentro de rangos personalizados de IPs.
 Usa probes broadcast/multicast (SSDP/mDNS) por bloque y fallback a ping-sweep chunked
 si no hay respuestas. Luego asocia MACs leyendo la tabla ARP.
 
 Ejemplo:
-  python3 optimized_block_scanner.py --start 100 --end 119 --use-broadcast-probe
+  python3 optimized_block_scanner.py --ranges 10.100.10.50-10.100.10.58 10.101.0.1 --use-broadcast-probe
 
 """
 
@@ -26,6 +26,7 @@ from itertools import islice
 from logica.ping_utils import ping_host
 from logica.arp_utils import parse_arp_table
 from concurrent.futures import ThreadPoolExecutor, as_completed as futures_as_completed
+import time
 
 # ------------------ SUBPROCESS HELPER (Windows-safe) ------------------
 def _run_hidden(cmd, **kwargs):
@@ -271,35 +272,64 @@ async def ping_sweep_chunked(network, chunk_size, per_host_timeout, per_subnet_t
 # ------------------ BLOCK PATTERNS ------------------
 # Blocks are tuples (start_ip_inclusive, end_ip_inclusive) defined inside each /16.
 # We'll create ipaddress.ip_network objects for each block
-def blocks_for_segment(second_octet):
+
+def generate_network_from_range(start_ip, end_ip=None):
     """
-    Return list of (ip_network) blocks to scan for given 10.<second>.* segment.
-    Uses patterns inferred from your data.
+    Genera una ip_network que cubra el rango de start_ip a end_ip (o solo start_ip si end_ip es None).
+    Usa la máscara más pequeña posible que encierre el rango (potencia de 2).
+    
+    Args:
+        start_ip (str): IP de inicio (e.g., "10.100.10.50").
+        end_ip (str|None): IP de fin (e.g., "10.100.10.58"). Si None, solo start_ip.
+    
+    Returns:
+        ipaddress.ip_network: Red que cubre el rango.
+    
+    Raises:
+        ValueError: Si las IPs no son válidas o no están en la red privada.
     """
-    seg_base = f"10.{second_octet}.0.0/16"
-    blocks = []
-    s = second_octet
-    if s == 100:
-        # specific blocks found in data
-        blocks += [
-            ipaddress.ip_network("10.100.0.0/25"),    # .0 - .127
-            ipaddress.ip_network("10.100.0.128/25"),  # .128 - .255 (we'll cover to .132 via first block but keep both)
-            ipaddress.ip_network("10.100.2.0/24"),    # big concentrated block 2.x
-            ipaddress.ip_network("10.100.3.0/24"),    # 3.x cluster
-            ipaddress.ip_network("10.100.5.0/24"),    # scattered
-            ipaddress.ip_network("10.100.10.0/24"),   # dense 10.x cluster
-        ]
+    start = ipaddress.ip_address(start_ip)
+    if end_ip:
+        end = ipaddress.ip_address(end_ip)
+        if int(end) < int(start):
+            end = start
+            raise ValueError("IP de fin debe ser mayor o igual a la de inicio")
     else:
-        # default heuristic blocks for other segments:
-        # - very small low block around .1
-        # - .0/25 to catch .1-.127
-        # - .50/32 and block around .100/30
-        blocks += [
-            ipaddress.ip_network(f"10.{s}.0.0/25"),            # low .1..127
-            ipaddress.ip_network(f"10.{s}.50.0/32") if False else ipaddress.ip_network(f"10.{s}.0.0/32"), # placeholder (we'll probe specific ips too)
-            ipaddress.ip_network(f"10.{s}.100.0/26")           # around .100 (covers .100-.127)
-        ]
-    return blocks
+        end = start
+    
+    # Verificar que estén en red privada
+    private_nets = [ipaddress.ip_network("10.0.0.0/8")]
+    in_private = any(start in net for net in private_nets)
+    if not in_private:
+        raise ValueError("IPs deben estar en red privada (10.0.0.0/8)")
+    
+    # Calcular número de IPs
+    num_ips = int(end) - int(start) + 1
+    
+    # Encontrar la potencia de 2 más cercana (mínimo 1, máximo 256 para /24)
+    import math
+    mask_size = 32 - math.ceil(math.log2(max(num_ips, 1)))
+    mask_size = max(20, min(32, mask_size))  # Limitar entre /20 y /32
+    
+    # Calcular IP base: la más baja múltiplo de 2^(32-mask) que cubra start
+    block_size = 2 ** (32 - mask_size)
+    start_int = int(start)
+    base_int = (start_int // block_size) * block_size
+    base_ip = ipaddress.ip_address(base_int)
+    
+    network = ipaddress.ip_network(f"{base_ip}/{mask_size}", strict=False)
+    
+    # Verificar que cubra el rango
+    if start not in network or end not in network:
+        # Si no cubre, aumentar la máscara (hacer red más grande)
+        mask_size -= 1
+        base_int = (start_int // (2 ** (32 - mask_size))) * (2 ** (32 - mask_size))
+        base_ip = ipaddress.ip_address(base_int)
+        network = ipaddress.ip_network(f"{base_ip}/{mask_size}", strict=False)
+    
+    return network
+
+
 
 # ------------------ SMALL HELPERS ------------------
 def probe_block(segment_net, iface_ip, timeout, use_broadcast):
@@ -310,96 +340,70 @@ def probe_block(segment_net, iface_ip, timeout, use_broadcast):
     return set(mdns)
 
 # ------------------ MAIN FLOW ------------------
-async def scan_blocks(start, end, chunk_size, per_host_timeout, per_subnet_timeout, concurrency, probe_timeout, use_broadcast_probe, callback_progreso=None):
+async def scan_blocks(ranges, chunk_size, per_host_timeout, per_subnet_timeout, concurrency, probe_timeout, use_broadcast_probe, callback_progreso=None):
     local_super = get_local_supernet()
     all_alive = set()
     loop = asyncio.get_event_loop()
 
-    total_segments = end - start + 1
+    total_ranges = len(ranges)
 
-    for idx, second in enumerate(range(start, end + 1), start=1):
-        print(f"\n--- Segment 10.{second}.x.x ---")
+    for idx, range_str in enumerate(ranges, start=1):
+        print(f"\n--- Rango {idx}/{total_ranges}: {range_str} ---")
+        
+        # Parsear rango: start-end o solo start
+        if '-' in range_str:
+            start_ip, end_ip = range_str.split('-', 1)
+        else:
+            start_ip = end_ip = range_str
+        
+        # Generar red
+        try:
+            network = generate_network_from_range(start_ip, end_ip)
+            print(f"  -> Red generada: {network}")
+        except ValueError as e:
+            print(f"  [ERROR] Rango inválido {range_str}: {e}")
+            continue
         
         # Emitir progreso al callback si existe
         if callback_progreso:
             try:
                 callback_progreso({
-                    'tipo': 'segmento',
-                    'segmento_actual': second,
-                    'segmento_index': idx,
-                    'segmentos_totales': total_segments,
-                    'mensaje': f"Escaneando segmento 10.{second}.x.x ({idx}/{total_segments})"
+                    'tipo': 'rango',
+                    'rango_actual': range_str,
+                    'rango_index': idx,
+                    'rangos_totales': total_ranges,
+                    'mensaje': f"Escaneando rango {idx}/{total_ranges}: {range_str} -> {network}"
                 })
             except Exception as e:
                 print(f"[WARN] Error emitiendo progreso: {e}")
-        blks = blocks_for_segment(second)
-        # dedupe blocks
-        seen = set()
-        final_blocks = []
-        for b in blks:
-            if str(b) in seen:
-                continue
-            seen.add(str(b))
-            final_blocks.append(b)
-
-        # Also test a few "typical" single IP probes: .1, .50, .100
-        typical_ips = [f"10.{second}.0.1", f"10.{second}.0.50", f"10.{second}.0.100"]
-
-        # 1) Probe typical single IPs (fast)
-        for tip in typical_ips:
+        
+        # Probe by broadcast/multicast first (cheap)
+        found_ips = set()
+        if use_broadcast_probe:
             try:
-                ok = await ping_host(tip, per_host_timeout)
+                found_ips = await loop.run_in_executor(None, probe_block, network, None, probe_timeout, True)
             except Exception:
-                ok = False
-            if ok:
-                print(f"  - quick alive: {tip}")
-                all_alive.add(tip)
-
-        # 2) For each block: probe by broadcast/multicast first (cheap)
-        for block_idx, b in enumerate(final_blocks, start=1):
-            print(f"  -> block {b}")
-            
-            # Emitir progreso de bloque
-            if callback_progreso:
-                try:
-                    callback_progreso({
-                        'tipo': 'bloque',
-                        'segmento_actual': second,
-                        'bloque_actual': str(b),
-                        'bloque_index': block_idx,
-                        'bloques_totales': len(final_blocks),
-                        'mensaje': f"10.{second}.x.x - Bloque {block_idx}/{len(final_blocks)}: {b}"
-                    })
-                except Exception:
-                    pass
-            
-            found_ips = set()
-            if use_broadcast_probe:
-                try:
-                    found_ips = await loop.run_in_executor(None, probe_block, b, None, probe_timeout, True)
-                except Exception:
-                    found_ips = set()
-                if found_ips:
-                    print(f"     probe found {len(found_ips)} hosts (examples: {list(found_ips)[:6]})")
-                    all_alive.update(found_ips)
-                    # NO hacer continue - hacer ping sweep adicional para encontrar dispositivos que no responden a probes
-
-            # Hacer ping sweep en el bloque (complementa los probes)
-            num_hosts = b.num_addresses - 2
-            if num_hosts <= 0:
-                continue
-            # Saltar si el bloque es muy grande
-            if num_hosts > 4096:
-                print(f"     skipping sweep of {b} (too large: {num_hosts} hosts)")
-                continue
-            print(f"     doing chunked sweep of {b} ({num_hosts} hosts)")
-            alive = await ping_sweep_chunked(b, chunk_size=chunk_size, per_host_timeout=per_host_timeout,
-                                             per_subnet_timeout=per_subnet_timeout, concurrency=concurrency)
-            if alive:
-                print(f"     => {len(alive)} alive in block (examples: {alive[:6]})")
-                all_alive.update(alive)
-            else:
-                print("     => 0 alive in block")
+                found_ips = set()
+            if found_ips:
+                print(f"     probe found {len(found_ips)} hosts (examples: {list(found_ips)[:6]})")
+                all_alive.update(found_ips)
+        
+        # Hacer ping sweep en la red (complementa los probes)
+        num_hosts = network.num_addresses - 2
+        if num_hosts <= 0:
+            continue
+        # Saltar si el bloque es muy grande
+        if num_hosts > 4096:
+            print(f"     skipping sweep of {network} (too large: {num_hosts} hosts)")
+            continue
+        print(f"     doing chunked sweep of {network} ({num_hosts} hosts)")
+        alive = await ping_sweep_chunked(network, chunk_size=chunk_size, per_host_timeout=per_host_timeout,
+                                         per_subnet_timeout=per_subnet_timeout, concurrency=concurrency)
+        if alive:
+            print(f"     => {len(alive)} alive in network (examples: {alive[:6]})")
+            all_alive.update(alive)
+        else:
+            print("     => 0 alive in network")
 
     return sorted(all_alive, key=lambda s: tuple(int(x) for x in s.split(".")))
 
@@ -422,9 +426,8 @@ def merge_with_arp(alive_ips):
     return out
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Optimized block scanner for 10.100..10.119 ranges.")
-    p.add_argument("--start", type=int, default=DEFAULT_START)
-    p.add_argument("--end", type=int, default=DEFAULT_END)
+    p = argparse.ArgumentParser(description="Optimized block scanner for custom IP ranges.")
+    p.add_argument("--ranges", nargs='+', help="Rangos de IPs a escanear (formato: start-end o solo start). Ej: --ranges 10.100.10.50-10.100.10.58 10.101.0.1")
     p.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK)
     p.add_argument("--per-host-timeout", type=float, default=DEFAULT_PER_HOST_TIMEOUT)
     p.add_argument("--per-subnet-timeout", type=float, default=DEFAULT_PER_SUBNET_TIMEOUT)
@@ -599,7 +602,7 @@ def update_csv_with_macs(
     missing_ips = [r["ip"] for r in rows if r["ip"] and (not r["mac"])]
     missing_ips = list(dict.fromkeys(missing_ips))  # Dedupe preserve order
     print(f"CSV rows: {total}, IPs missing MAC: {len(missing_ips)}")
-    
+    ping_missing = False
     # 3) Opcional: ping masivo concurrente para poblar ARP
     if ping_missing and missing_ips:
         print(f"Pinging {len(missing_ips)} IPs (timeout={ping_timeout}s, workers={workers}) to populate ARP...")
@@ -729,20 +732,24 @@ def main(callback_progreso=None):
     
     Args:
         callback_progreso: Función opcional que recibe diccionarios con información de progreso.
-                          Ejemplo: {'tipo': 'segmento', 'segmento_actual': 100, 'mensaje': '...'}
+                          Ejemplo: {'tipo': 'rango', 'rango_actual': '10.100.10.50-10.100.10.58', 'mensaje': '...'}
     """
     args = parse_args()
+    if not args.ranges:
+        print("ERROR: Debes proporcionar al menos un rango con --ranges")
+        sys.exit(1)
+    
     try:
         local_super = get_local_supernet()
     except Exception as e:
         print("ERROR:", e)
         sys.exit(1)
 
-    print(f"Scanning 10.{args.start}.x.x .. 10.{args.end}.x.x  (use-broadcast={args.use_broadcast_probe})")
+    print(f"Scanning custom ranges: {args.ranges} (use-broadcast={args.use_broadcast_probe})")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        alive = loop.run_until_complete(scan_blocks(args.start, args.end,
+        alive = loop.run_until_complete(scan_blocks(args.ranges,
                                                     chunk_size=args.chunk_size,
                                                     per_host_timeout=args.per_host_timeout,
                                                     per_subnet_timeout=args.per_subnet_timeout,
@@ -866,9 +873,11 @@ def main(callback_progreso=None):
         # Limpiar archivo temporal
         if os.path.exists(temp_csv):
             os.remove(temp_csv)
+    
+    return alive
 
 if __name__ == "__main__":
-    import time
+    
     # Inicio del contador lo más arriba posible
     start_time = time.time()
     

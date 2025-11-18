@@ -167,7 +167,7 @@ class Monitor:
 
 class Scanner:
     """Responsable de ejecutar el escaneo de red y poblar DB desde CSV."""
-    
+    print(">> Creando instancia de Scanner...")
     def run_scan(self, callback_progreso=None):
         """Ejecuta el escaneo externo y devuelve la ruta al CSV generado.
 
@@ -177,7 +177,7 @@ class Scanner:
         Nota: esta función importa el escaneo y asume que genera
         `discovered_devices.csv` en la raíz o en `output/`.
         """
-        
+        print("=== Iniciando escaneo de red ===")
         scan.main(callback_progreso=callback_progreso)
         # Determinar CSV generado
         project_root = Path(__file__).parent.parent.parent
@@ -190,7 +190,7 @@ class Scanner:
         csv_root = project_root / 'discovered_devices.csv'
         if csv_root.exists():
             return str(csv_root)
-
+        print("[Scanner] discovered_devices.csv no encontrado después del escaneo")
         raise FileNotFoundError('discovered_devices.csv no encontrado después del escaneo')
 
     def parse_csv_to_db(self, csv_path: Optional[str]):
@@ -248,6 +248,32 @@ class Scanner:
             traceback.print_exc()
 
         return inserted
+
+    def run_scan_con_rangos(self, start_ip, end_ip, callback_progreso=None):
+        """Ejecuta el escaneo con rangos específicos de IP."""
+        # Importar el módulo del escáner
+        import logica.optimized_block_scanner as scan
+        
+        # Simular argumentos para el escáner (ya que usa argparse)
+        # Necesitas modificar optimized_block_scanner.py para aceptar rangos directamente
+        # Por ahora, puedes llamar scan.main() con argumentos simulados
+        import sys
+        from io import StringIO
+        
+        # Guardar sys.argv original
+        original_argv = sys.argv
+        
+        # Simular argumentos para --ranges
+        sys.argv = ['optimized_block_scanner.py', '--ranges', f'{start_ip}-{end_ip}']
+        print(f"[Scanner] Ejecutando escaneo para rangos {start_ip} - {end_ip}")
+        try:
+            # Capturar salida si es necesario, o modificar scan.main para devolver resultados
+            scan.main(callback_progreso=callback_progreso)
+            # Determinar CSV generado (igual que en run_scan)
+            # ...
+            return "Escaneo completado"  # O devolver el CSV path
+        finally:
+            sys.argv = original_argv  # Restaurar
 
 def parsear_datos_dispositivo(json_data):
     """

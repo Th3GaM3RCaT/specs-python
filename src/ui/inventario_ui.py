@@ -1084,9 +1084,24 @@ class Ui_MainWindow(object):
 
         self.lineEditBuscar = QLineEdit(self.frameHeader)
         self.lineEditBuscar.setObjectName(u"lineEditBuscar")
-        self.lineEditBuscar.setMinimumSize(QSize(250, 0))
+        self.lineEditBuscar.setMinimumSize(QSize(200, 0))
 
         self.horizontalLayout_header.addWidget(self.lineEditBuscar)
+
+        self.ip_start_input = QLineEdit(self.frameHeader)
+        self.ip_start_input.setObjectName(u"ip_start_input")
+
+        self.horizontalLayout_header.addWidget(self.ip_start_input)
+
+        self.ip_end_input = QLineEdit(self.frameHeader)
+        self.ip_end_input.setObjectName(u"ip_end_input")
+
+        self.horizontalLayout_header.addWidget(self.ip_end_input)
+
+        self.scan_button = QPushButton(self.frameHeader)
+        self.scan_button.setObjectName(u"scan_button")
+
+        self.horizontalLayout_header.addWidget(self.scan_button)
 
         self.labelFiltro = QLabel(self.frameHeader)
         self.labelFiltro.setObjectName(u"labelFiltro")
@@ -1309,7 +1324,7 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 1280, 23))
+        self.menubar.setGeometry(QRect(0, 0, 1280, 24))
         self.menuArchivo = QMenu(self.menubar)
         self.menuArchivo.setObjectName(u"menuArchivo")
         self.menuVer = QMenu(self.menubar)
@@ -1359,6 +1374,9 @@ class Ui_MainWindow(object):
         self.labelTitle.setText(QCoreApplication.translate("MainWindow", u"Inventario de Dispositivos", None))
         self.labelBuscar.setText(QCoreApplication.translate("MainWindow", u"Buscar:", None))
         self.lineEditBuscar.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Serial, DTI, Usuario, Modelo...", None))
+        self.ip_start_input.setPlaceholderText(QCoreApplication.translate("MainWindow", u"IP Inicio", None))
+        self.ip_end_input.setPlaceholderText(QCoreApplication.translate("MainWindow", u"IP Fin (opcional)", None))
+        self.scan_button.setText(QCoreApplication.translate("MainWindow", u"Iniciar Escaneo", None))
         self.labelFiltro.setText(QCoreApplication.translate("MainWindow", u"Filtrar:", None))
         self.comboBoxFiltro.setItemText(0, QCoreApplication.translate("MainWindow", u"Todos", None))
         self.comboBoxFiltro.setItemText(1, QCoreApplication.translate("MainWindow", u"Activos", None))

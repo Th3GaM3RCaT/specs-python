@@ -1,6 +1,6 @@
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtGui import QColor, QBrush
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QMessageBox
 import sys
 import asyncio
 from ui.inventario_ui import Ui_MainWindow  # Importar el .ui convertido
@@ -10,6 +10,8 @@ from logica import logica_servidor as ls  # Importar lógica del servidor
 from logica.logica_Hilo import Hilo, HiloConProgreso  # Para operaciones en background
 # Utilitario compartido de ping asíncrono (evitar duplicación)
 from logica.ping_utils import ping_host
+from logica.logica_Hilo import HiloConProgreso
+from logica.logica_servidor import Scanner
 
 # Constantes de colores para estados de dispositivos
 COLOR_ENCENDIDO = "green"
@@ -71,6 +73,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         # Hilos para operaciones de red
         self.hilo_servidor = None
         self.hilo_escaneo = None
+        self.hilo_escaneo_rangos = None        
         self.hilo_consulta = None
 
         # Ruta del último CSV generado por Scanner (si aplica)
@@ -86,7 +89,8 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.tableDispositivos.itemSelectionChanged.connect(self.on_dispositivo_seleccionado)
         self.ui.lineEditBuscar.textChanged.connect(self.filtrar_dispositivos)
         self.ui.comboBoxFiltro.currentTextChanged.connect(self.aplicar_filtro)
-        self.ui.btnActualizar.clicked.connect(self.iniciar_escaneo_completo)  # Cambio: ahora hace escaneo completo
+        self.ui.btnActualizar.clicked.connect(self.iniciar_escaneo_completo)
+        self.ui.scan_button.clicked.connect(self.iniciar_escaneo_con_rangos)
 
         # Botones de acciones
         self.ui.btnVerDiagnostico.clicked.connect(self.ver_diagnostico)
@@ -252,7 +256,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 # Licencia con color
                 lic_item = QtWidgets.QTableWidgetItem("[OK] Activa" if license_status else "[X] Inactiva")
                 if not license_status:
-                    lic_item.setForeground(QBrush(QColor("darkred")))
+                    lic_item.setForeground(QBrush(QColor("orangered")))
                 self.ui.tableDispositivos.setItem(row_position, 8, lic_item)
                 
                 # IP con ordenamiento numérico personalizado
@@ -785,7 +789,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                         
                         lic_item = QtWidgets.QTableWidgetItem('Activa' if lic else 'Inactiva')
                         if not lic:
-                            lic_item.setForeground(QBrush(QColor("darkred")))
+                            lic_item.setForeground(QBrush(QColor("orangered")))
                         table.setItem(i, 6, lic_item)
                         
                         table.setItem(i, 7, QtWidgets.QTableWidgetItem(ip or '-'))
@@ -1011,8 +1015,50 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         # Reiniciar timer de verificación automática
         if hasattr(self, 'timer_estados') and self.timer_estados:
             self.timer_estados.start(10000)
-
-
+    
+    def iniciar_escaneo_con_rangos(self):
+        # Obtener rangos de los campos de entrada
+        print("\n=== Iniciando escaneo con rangos personalizados ===")
+        start_ip = self.ui.ip_start_input.text().strip()
+        end_ip = self.ui.ip_end_input.text().strip()
+        print(f">> Rango: {start_ip} - {end_ip}")
+        # Validar entradas (básico)
+        if not start_ip or not end_ip:
+            QMessageBox.warning(self, "Error", "Ingresa IP de inicio y fin.")
+            return
+        
+        # Crear instancia del scanner
+        print(">> Creando instancia de Scanner...")
+        scanner = ls.Scanner()
+        print(">> Instancia creada.")
+        # Usar HiloConProgreso para ejecutar el escaneo sin congelar la UI
+        def funcion_escaneo():
+            # Aquí pasamos los rangos al scanner
+            # Nota: Scanner.run_scan() necesita ser modificado para aceptar rangos (ver paso 3)
+            print(">> Ejecutando escaneo con rangos...")
+            return scanner.run_scan_con_rangos(start_ip, end_ip)
+        
+        def on_progreso(datos):
+            print(f">> Progreso: {datos}")
+            # Actualizar UI con progreso (ej: barra de progreso, tabla)
+            if 'ip' in datos:
+                # Ejemplo: Actualizar una tabla o label con el estado de la IP
+                print(f"Procesando IP: {datos['ip']} - Activo: {datos['activo']}")
+                # Aquí puedes actualizar una QTableWidget o QLabel con el progreso
+        
+        def on_terminado(resultado):
+            # Manejar resultado final (ej: mostrar mensaje)
+            print(f">> Escaneo con rangos completado. Resultado: {resultado}")
+            QMessageBox.information(self, "Escaneo Completado", f"Resultado: {resultado}")
+        
+        # Crear y ejecutar el hilo
+        self.hilo_escaneo_rangos = HiloConProgreso(funcion_escaneo)
+        
+        self.hilo_escaneo_rangos.progreso.connect(on_progreso)
+        self.hilo_escaneo_rangos.terminado.connect(on_terminado)
+        self.hilo_escaneo_rangos.start()
+        print(">> Hilo de escaneo iniciado.")
+        
 
 app = QtWidgets.QApplication.instance()
 if app is None:

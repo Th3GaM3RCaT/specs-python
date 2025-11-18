@@ -42,7 +42,7 @@ def inicializar_db():
         
         conn.close()
     except Exception as e:
-        print(f"⚠ Error inicializando base de datos: {e}")
+        print(f"Error inicializando base de datos: {e}")
 
 # Inicializar DB al importar el módulo
 inicializar_db()
@@ -405,11 +405,8 @@ def setDevice(info_dispositivo = tuple(), conn=None):
                        disk = excluded.disk,
                        license_status = excluded.license_status,
                        ip = excluded.ip,
-                       activo = excluded.activo""",(
-            info_dispositivo[0], info_dispositivo[1], info_dispositivo[2], info_dispositivo[3],
-            info_dispositivo[4], info_dispositivo[5], info_dispositivo[6], info_dispositivo[7],
-            info_dispositivo[8], info_dispositivo[9], info_dispositivo[10], info_dispositivo[11]
-    ))
+                       activo = excluded.activo""",
+                        info_dispositivo)
     
     # Si usa conexión global, hacer commit automático
     if not conn:

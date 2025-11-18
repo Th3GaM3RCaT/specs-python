@@ -1074,12 +1074,33 @@ QProgressBar::chunk
         <widget class="QLineEdit" name="lineEditBuscar">
          <property name="minimumSize">
           <size>
-           <width>250</width>
+           <width>200</width>
            <height>0</height>
           </size>
          </property>
          <property name="placeholderText">
           <string>Serial, DTI, Usuario, Modelo...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="ip_start_input">
+         <property name="placeholderText">
+          <string>IP Inicio</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="ip_end_input">
+         <property name="placeholderText">
+          <string>IP Fin (opcional)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="scan_button">
+         <property name="text">
+          <string>Iniciar Escaneo</string>
          </property>
         </widget>
        </item>
@@ -1510,7 +1531,7 @@ QProgressBar::chunk
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>23</height>
+     <height>24</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuArchivo">
