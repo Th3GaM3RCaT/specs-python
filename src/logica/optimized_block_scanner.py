@@ -26,6 +26,7 @@ from itertools import islice
 from logica.ping_utils import ping_host
 from logica.arp_utils import parse_arp_table
 from concurrent.futures import ThreadPoolExecutor, as_completed as futures_as_completed
+import ipaddress
 import time
 
 # ------------------ SUBPROCESS HELPER (Windows-safe) ------------------
@@ -302,7 +303,7 @@ async def scan_blocks(ranges, chunk_size, per_host_timeout, per_subnet_timeout, 
         
         # Generar red
         try:
-            from scan_rangos_ip import calculate_ip_range
+            from logica.scan_rangos_ip import calculate_ip_range
             subnet1, subnet2 = calculate_ip_range(start_ip, end_ip) # type: ignore
             subnets = [subnet1]
             if subnet2:
@@ -686,13 +687,13 @@ def main(callback_progreso=None):
     args = parse_args()
     if not args.ranges:
         print("ERROR: Debes proporcionar al menos un rango con --ranges")
-        sys.exit(1)
+        #sys.exit(1)
     
     try:
         local_super = get_local_supernet()
     except Exception as e:
         print("ERROR:", e)
-        sys.exit(1)
+        #sys.exit(1)
 
     print(f"Scanning custom ranges: {args.ranges} (use-broadcast={args.use_broadcast_probe})")
     loop = asyncio.new_event_loop()

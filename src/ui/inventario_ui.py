@@ -1122,6 +1122,8 @@ class Ui_MainWindow(object):
 
         self.btnActualizar = QPushButton(self.frameHeader)
         self.btnActualizar.setObjectName(u"btnActualizar")
+        self.btnActualizar.setEnabled(False)
+        self.btnActualizar.setFlat(True)
 
         self.horizontalLayout_header.addWidget(self.btnActualizar)
 

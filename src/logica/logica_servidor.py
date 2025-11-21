@@ -267,11 +267,11 @@ class Scanner:
         sys.argv = ['optimized_block_scanner.py', '--ranges', f'{start_ip}-{end_ip}']
         print(f"[Scanner] Ejecutando escaneo para rangos {start_ip} - {end_ip}")
         try:
-            # Capturar salida si es necesario, o modificar scan.main para devolver resultados
-            scan.main(callback_progreso=callback_progreso)
-            # Determinar CSV generado (igual que en run_scan)
-            # ...
-            return "Escaneo completado"  # O devolver el CSV path
+            # Capturar el resultado del escaneo
+            print("[Scanner] Llamando a scan.main...")
+            alive = scan.main(callback_progreso=callback_progreso)
+            print(f"[Scanner] Escaneo completado, alive: {len(alive) if alive else 0}")
+            return alive  # Devolver la lista de IPs vivas
         finally:
             sys.argv = original_argv  # Restaurar
 

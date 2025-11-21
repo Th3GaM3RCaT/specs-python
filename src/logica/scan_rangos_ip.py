@@ -1,5 +1,3 @@
-from ast import Return
-from email.mime import base
 import ipaddress
 from re import compile
 
@@ -93,11 +91,10 @@ def calculate_ip_range(ip_start="10.100.0.0", ip_end=None):
 if __name__ == "__main__":
     try:
         ip_inicio = "10.100.1.100"
-        ip_fin = "10.100.2.12"
+        ip_fin = "10.100.1.120"
         print("IP inicio:", ip_inicio)
         print("IP fin:", ip_fin)
         remaining_last_octet = calculate_ip_range(ip_inicio, ip_fin)
         print(remaining_last_octet, "IPs en el rango")
-        #TODO: reemplazar funcion en optimized_block_scanner por calculate_ip_range 
     except Exception:
         print("Error inesperado:", Exception)

@@ -1,10 +1,16 @@
+import sys
+from pathlib import Path
+
+# Agregar la raíz del proyecto al path para importaciones absolutas
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtGui import QColor, QBrush
 from PySide6.QtWidgets import QMainWindow, QMessageBox
-import sys
 import asyncio
 from ui.inventario_ui import Ui_MainWindow  # Importar el .ui convertido
-from sql.ejecutar_sql import cursor, abrir_consulta  # Funciones de DB
+from sql.ejecutar_sql import cursor, connection, abrir_consulta, setDevice  # Funciones de DB
 import sql.ejecutar_sql as sql_mod
 from logica import logica_servidor as ls  # Importar lógica del servidor
 from logica.logica_Hilo import Hilo, HiloConProgreso  # Para operaciones en background
@@ -536,23 +542,23 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                           if not self.ui.tableDispositivos.isRowHidden(row))
         self.ui.labelContador.setText(f"Mostrando {visible_count} dispositivos")
     
-    def aplicar_filtro(self, filtro):
-        """Aplica filtro según combo seleccionado"""
+    def aplicar_filtro(self):
+        """Aplica filtro basado en el comboBoxFiltro (estado de dispositivos)"""
+        filtro = self.ui.comboBoxFiltro.currentText().lower()
+        
         for row in range(self.ui.tableDispositivos.rowCount()):
-            estado_item = self.ui.tableDispositivos.item(row, 0)
-            lic_item = self.ui.tableDispositivos.item(row, 8)
-            
+            estado_item = self.ui.tableDispositivos.item(row, 0)  # Columna Estado
             mostrar = True
-            if filtro == "Activos" and estado_item:
-                mostrar = "Inactivo" not in estado_item.text()
-            elif filtro == "Inactivos" and estado_item:
-                mostrar = "Inactivo" in estado_item.text()
-            elif filtro == "Encendidos" and estado_item:
-                mostrar = "Encendido" in estado_item.text()
-            elif filtro == "Apagados" and estado_item:
-                mostrar = "Apagado" in estado_item.text()
-            elif filtro == "Sin Licencia" and lic_item:
-                mostrar = "Inactiva" in lic_item.text()
+            
+            if estado_item:
+                estado_texto = estado_item.text().lower()
+                if filtro == "encendidos":
+                    mostrar = "encendido" in estado_texto
+                elif filtro == "apagados":
+                    mostrar = "apagado" in estado_texto
+                elif filtro == "sin ip":
+                    mostrar = "sin ip" in estado_texto or "sin_ip" in estado_texto
+                # "todos" muestra todo (mostrar = True)
             
             self.ui.tableDispositivos.setRowHidden(row, not mostrar)
         
@@ -560,6 +566,22 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         visible_count = sum(1 for row in range(self.ui.tableDispositivos.rowCount()) 
                           if not self.ui.tableDispositivos.isRowHidden(row))
         self.ui.labelContador.setText(f"Mostrando {visible_count} dispositivos")
+    
+    def filtrar_por_ips(self, ips_list):
+        """Filtra la tabla para mostrar solo dispositivos con IPs en la lista dada"""
+        for row in range(self.ui.tableDispositivos.rowCount()):
+            ip_item = self.ui.tableDispositivos.item(row, 9)  # Columna IP
+            if ip_item:
+                ip = ip_item.text()
+                mostrar = ip in ips_list
+            else:
+                mostrar = False
+            self.ui.tableDispositivos.setRowHidden(row, not mostrar)
+        
+        # Actualizar contador
+        visible_count = sum(1 for row in range(self.ui.tableDispositivos.rowCount()) 
+                          if not self.ui.tableDispositivos.isRowHidden(row))
+        self.ui.labelContador.setText(f"Mostrando {visible_count} dispositivos encontrados")
     
     def ver_diagnostico(self):
         """Abre ventana de diagnóstico completo"""
@@ -682,7 +704,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                         table.setItem(i, 0, QtWidgets.QTableWidgetItem(disco[1] or '-'))  # nombre (unidad)
                         table.setItem(i, 1, QtWidgets.QTableWidgetItem(disco[3] or '-'))  # tipo
                         table.setItem(i, 2, QtWidgets.QTableWidgetItem(str(disco[2] or '-')))  # capacidad
-                        fecha = disco[5][:10]
+                        fecha = disco[5][:10] if disco[5] else '-'
                         table.setItem(i, 3, QtWidgets.QTableWidgetItem(fecha))
                 else:
                     table.setRowCount(1)
@@ -923,7 +945,9 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
     
     def poblar_db_desde_csv(self):
         """Paso 2: Lee CSV y crea registros básicos en DB (solo IP/MAC)"""
+        print("\n=== Iniciando poblado de DB desde CSV ===")
         def callback_poblar():
+            print(">> Poblando DB...")
             try:
                 print("\n=== Poblando DB desde CSV (Scanner.parse_csv_to_db) ===")
                 csv_path = getattr(self, '_last_csv', None)
@@ -1022,21 +1046,24 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         start_ip = self.ui.ip_start_input.text().strip()
         end_ip = self.ui.ip_end_input.text().strip()
         print(f">> Rango: {start_ip} - {end_ip}")
-        # Validar entradas (básico)
-        if not start_ip or not end_ip:
-            QMessageBox.warning(self, "Error", "Ingresa IP de inicio y fin.")
-            return
+
         
         # Crear instancia del scanner
         print(">> Creando instancia de Scanner...")
         scanner = ls.Scanner()
         print(">> Instancia creada.")
         # Usar HiloConProgreso para ejecutar el escaneo sin congelar la UI
-        def funcion_escaneo():
+        def funcion_escaneo(callback_progreso=None):
             # Aquí pasamos los rangos al scanner
             # Nota: Scanner.run_scan() necesita ser modificado para aceptar rangos (ver paso 3)
             print(">> Ejecutando escaneo con rangos...")
-            return scanner.run_scan_con_rangos(start_ip, end_ip)
+            try:
+                return scanner.run_scan_con_rangos(start_ip, end_ip, callback_progreso=callback_progreso)
+            except Exception as e:
+                print(f">> Error en escaneo: {e}")
+                import traceback
+                traceback.print_exc()
+                return []
         
         def on_progreso(datos):
             print(f">> Progreso: {datos}")
@@ -1048,17 +1075,47 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         
         def on_terminado(resultado):
             # Manejar resultado final (ej: mostrar mensaje)
-            print(f">> Escaneo con rangos completado. Resultado: {resultado}")
-            QMessageBox.information(self, "Escaneo Completado", f"Resultado: {resultado}")
-        
-        # Crear y ejecutar el hilo
+            if isinstance(resultado, list):
+                num_ips = len(resultado)
+                print(f">> Escaneo con rangos completado. Encontradas {num_ips} IPs activas: {resultado[:10]}...")
+                
+                if resultado:
+                    # Poblar DB con registros básicos para IPs encontradas que no existan
+                    try:
+                        for ip in resultado:
+                            print(f">> Procesando IP para DB: {ip}")
+                            # Usar función prehecha para consultar si existe
+                            sql, params = abrir_consulta("Dispositivos-select.sql", {"ip": ip})
+                            cursor.execute(sql, params)
+                            if not cursor.fetchone():
+                                # Crear serial temporal único
+                                serial_temp = f"TEMP_IP_{ip.replace('.', '_')}"
+                                # Usar función prehecha para insertar dispositivo básico
+                                info_basico = (serial_temp, 0, '', '', '', '', '', '', 0, '', ip, 1)
+                                setDevice(info_basico)
+                        print(f">> Poblada DB con registros básicos para {len(resultado)} IPs nuevas")
+                    except Exception as e:
+                        print(f">> Error poblando DB: {e}")
+                        connection.rollback()  # Revertir cambios en caso de error
+                    
+                    # Recargar tabla con datos actualizados
+                    self.cargar_dispositivos(verificar_ping=False)
+                    
+                    # Filtrar para mostrar solo las IPs encontradas
+                    self.filtrar_por_ips(resultado)
+                    
+                    
+                else:
+                    print("Escaneo Completado", "No se encontraron IPs activas.")
+            else:
+                print(f">> Escaneo con rangos completado. Resultado: {resultado}")
+                print("Escaneo Completado", f"Resultado: {resultado}")
         self.hilo_escaneo_rangos = HiloConProgreso(funcion_escaneo)
         
         self.hilo_escaneo_rangos.progreso.connect(on_progreso)
         self.hilo_escaneo_rangos.terminado.connect(on_terminado)
         self.hilo_escaneo_rangos.start()
         print(">> Hilo de escaneo iniciado.")
-        
 
 app = QtWidgets.QApplication.instance()
 if app is None:
