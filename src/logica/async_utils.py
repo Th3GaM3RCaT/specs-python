@@ -1,15 +1,16 @@
 """Utilidades para manejo de funciones async desde código síncrono."""
+
 import asyncio
 
 
 def run_async(async_func, *args, **kwargs):
     """Ejecuta función async desde código síncrono.
-    
+
     Args:
         async_func: Función asíncrona a ejecutar
         *args: Argumentos posicionales
         **kwargs: Argumentos nombrados
-        
+
     Returns:
         Resultado de la función asíncrona
     """

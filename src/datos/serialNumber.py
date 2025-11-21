@@ -1,22 +1,27 @@
 import subprocess
 
+
 def run_cmd(cmd):
     try:
-        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, universal_newlines=True)
+        out = subprocess.check_output(
+            cmd, stderr=subprocess.DEVNULL, universal_newlines=True
+        )
         return out.strip()
     except Exception:
         return ""
 
+
 def get_serial():
     """
     Obtiene el serial number del BIOS del sistema.
-    
+
     Returns:
         str: Serial number si se encuentra, string vacío si no se puede obtener
     """
     # try WMI python module first
     try:
         import wmi
+
         c = wmi.WMI()
         bios = c.Win32_BIOS()
         if bios:
@@ -26,18 +31,25 @@ def get_serial():
     except Exception:
         pass
     # fallback: powershell Get-CimInstance
-    ps = ["powershell", "-NoProfile", "-Command",
-          "Get-CimInstance -ClassName Win32_BIOS | Select-Object -ExpandProperty SerialNumber"]
+    ps = [
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        "Get-CimInstance -ClassName Win32_BIOS | Select-Object -ExpandProperty SerialNumber",
+    ]
     out = run_cmd(ps)
     if out:
         return out
     # older systems: wmic (deprecated on some Windows)
     out = run_cmd(["wmic", "bios", "get", "serialnumber"])
     if out:
-        lines = [l.strip() for l in out.splitlines() if l.strip() and "SerialNumber" not in l]
+        lines = [
+            l.strip() for l in out.splitlines() if l.strip() and "SerialNumber" not in l
+        ]
         if lines:
             return lines[0]
     return ""
+
 
 if __name__ == "__main__":
     s = get_serial()

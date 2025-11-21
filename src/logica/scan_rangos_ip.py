@@ -53,7 +53,7 @@ def calculate_ip_range(ip_start="10.100.0.0", ip_end=None):
         def obtener_mascara(ip_bin):
             potencia = 0
             resultado = 1
-            while 2 ** potencia < ip_bin:
+            while 2**potencia < ip_bin:
                 resultado *= 2
                 potencia += 1
             return potencia
@@ -71,9 +71,11 @@ def calculate_ip_range(ip_start="10.100.0.0", ip_end=None):
             return subnet1
 
         ip_mask1 = Calcular_IP_base(ip_bin_start, mascara)
-        diferencia = int(ip_bin_end,2) - int(ip_to_binary_string(ip_mask1.compressed[:-3]),2)
-        
-        restante =  diferencia - ip_mask1.num_addresses
+        diferencia = int(ip_bin_end, 2) - int(
+            ip_to_binary_string(ip_mask1.compressed[:-3]), 2
+        )
+
+        restante = diferencia - ip_mask1.num_addresses
         print("Diferencia con potencia encontrada:", restante)
         if restante > 0:
             potencia = obtener_mascara(restante)

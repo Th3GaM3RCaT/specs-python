@@ -15,7 +15,8 @@ sys.path.insert(0, str(src_dir))
 if __name__ == "__main__":
     # Cambiar directorio de trabajo a src/
     import os
+
     os.chdir(src_dir)
-    
+
     # Importar servidor como módulo
     import mainServidor

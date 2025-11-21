@@ -1,4 +1,4 @@
-#type: ignore
+# type: ignore
 """
 Integración del Monitor de Tendencias en logica_servidor.py
 ==========================================================
@@ -21,16 +21,17 @@ from logica.monitor_tendencias import verificar_recursos_dispositivo
 # Buscar la función consultar_informacion() en logica_servidor.py
 # Después de guardar los datos en la DB, agregar:
 
+
 def consultar_informacion(conn, addr):
     # ... código existente que recibe y guarda datos ...
-    
+
     # Después de insertar en DB exitosamente:
-    serial = json_data.get("SerialNumber", "UNKNOWN") 
-    
+    serial = json_data.get("SerialNumber", "UNKNOWN")
+
     # AGREGAR ESTAS LÍNEAS:
     # Verificar tendencias de recursos
     alertas = verificar_recursos_dispositivo(serial, json_data)
-    
+
     if alertas:
         for alerta in alertas:
             print(f"\n[ALERTA] {alerta['tipo']} SATURADO")
@@ -38,7 +39,7 @@ def consultar_informacion(conn, addr):
             print(f"  Promedio: {alerta['promedio']:.1f}%")
             print(f"  Valores: {alerta['valores']}")
             print(f"  Umbral: {alerta['umbral']}%")
-            
+
             # Aquí puedes agregar notificación visual, email, etc.
             # Por ahora solo imprime en consola
 
