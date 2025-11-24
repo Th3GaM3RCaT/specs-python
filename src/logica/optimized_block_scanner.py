@@ -346,7 +346,6 @@ async def scan_blocks(
         # Generar red
         try:
             from logica.scan_rangos_ip import calculate_ip_range
-
             subnet1, subnet2 = calculate_ip_range(start_ip, end_ip)  # type: ignore
             subnets = [subnet1]
             if subnet2:

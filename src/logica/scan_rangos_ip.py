@@ -20,6 +20,7 @@ def calculate_ip_range(ip_start="10.100.0.0", ip_end=None):
         ValueError: Si las direcciones IP no son válidas.
     """
     global romper
+    if not ip_start: return
     if not ip_end:
         ip_end = ip_start
     try:
