@@ -348,6 +348,7 @@ python src\logica\optimized_block_scanner.py --start 100 --end 100
    └─> UI recarga tabla con datos completos
        └─> Timer de 10s reanuda verificación automática
 ```
+```
 
 5. SERVIDOR procesa y almacena
    ├─> Parsea JSON + DirectX
