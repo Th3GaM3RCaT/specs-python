@@ -18,7 +18,6 @@ import csv
 import os
 import platform
 import subprocess
-import sys
 from socket import (
     socket as sckt,
     AF_INET,
@@ -780,7 +779,6 @@ def main(callback_progreso=None):
     args = parse_args()
     if not args.ranges:
         print("ERROR: Debes proporcionar al menos un rango con --ranges")
-        # sys.exit(1)
 
     try:
         get_local_supernet()
