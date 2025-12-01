@@ -18,7 +18,7 @@ Sistema cliente-servidor para Windows que recopila automáticamente especificaci
 
 ```powershell
 # 1. Clonar repositorio
-git clone https://github.com/TuUsuario/specs-python.git
+git clone https://github.com/Th3GaM3RCaT/specs-python.git
 cd specs-python
 
 # 2. Instalar dependencias
