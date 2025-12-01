@@ -76,10 +76,10 @@ python run_servidor.py
 
 ```powershell
 # Desde código fuente
-python run_cliente.py
+python run_cliente.py --tarea
 
 # Desde ejecutable
-.\dist\SpecsNet-Cliente\SpecsNet-Cliente.exe
+.\dist\SpecsNet-Cliente\SpecsNet-Cliente.exe --tarea
 ```
 
 - Se ejecuta en segundo plano (modo daemon)
