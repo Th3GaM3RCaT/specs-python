@@ -375,7 +375,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 try:
                     if not ip or ip == "-":
                         return (row, False, "sin_ip")
-
                     conectado = await ping_host(ip, 0.5)
                     return (row, conectado, ip)
                 except Exception:
@@ -396,8 +395,13 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                     tareas.append(ping_dispositivo(row, ip))
 
                 # Ejecutar todos los pings en paralelo
-                resultados = await asyncio.gather(*tareas, return_exceptions=True)
-                return resultados
+                BATCH_SIZE = 25
+                resultados_batch = []
+                for i in range (0, len(tareas), BATCH_SIZE):
+                    batch = tareas[i:i + BATCH_SIZE]
+                    resultados_batch.extend( await asyncio.gather(*batch, return_exceptions=True))
+                    await asyncio.sleep(0.1)  # Pequeña pausa entre batches
+                return resultados_batch
 
             # Ejecutar verificación asíncrona
             loop = asyncio.new_event_loop()
