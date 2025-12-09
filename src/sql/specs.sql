@@ -31,6 +31,7 @@ CREATE TABLE almacenamiento(
   tipo VARCHAR,
   actual BOOLEAN,
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  usado INTEGER,
   fecha_instalacion DATETIME,
   CONSTRAINT serial_almacenamiento
     FOREIGN KEY ("Dispositivos_serial") REFERENCES "Dispositivos" (serial)
@@ -65,6 +66,7 @@ CREATE TABLE memoria(
   fabricante VARCHAR,
   capacidad INTEGER,
   velocidad INTEGER,
+  uso_porcentaje INTEGER,
   numero_serie VARCHAR,
   actual BOOLEAN,
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

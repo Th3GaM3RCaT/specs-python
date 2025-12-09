@@ -2,7 +2,8 @@ import sys
 import sqlite3
 from typing import Literal, Optional
 
-
+def get_thread_safe_connection():
+        return sqlite3.connect(DB_PATH, check_same_thread=False)
 # Inicializar base de datos
 def inicializar_db():
     """Crea las tablas de la base de datos si no existen."""
@@ -63,180 +64,7 @@ connection = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = connection.cursor()
 
 
-def get_thread_safe_connection():
-    """
-    Crea una nueva conexión SQLite para usar en hilos.
-    Cada hilo debe usar su propia conexión.
-    """
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
 
-
-def setDevice_threadsafe(info_dispositivo, conn):
-    """Versión thread-safe de setDevice que requiere una conexión explícita.
-
-    Args:
-        info_dispositivo (tuple): Tupla con (serial, DTI, user, MAC, model, processor,
-                                  GPU, RAM, disk, license_status, ip, activo)
-                                  Schema completo de tabla Dispositivos (12 campos)
-        conn (sqlite3.Connection): Conexión thread-safe (obtener con get_thread_safe_connection)
-
-    Returns:
-        None
-
-    Note:
-        El caller es responsable de hacer commit() y close() de la conexión.
-    """
-    cur = conn.cursor()
-
-    # Verificar si existe
-    cur.execute("SELECT * FROM Dispositivos WHERE serial = ?", (info_dispositivo[0],))
-    existe = cur.fetchone()
-
-    if existe:
-        # UPDATE
-        cur.execute(
-            """UPDATE Dispositivos 
-                       SET DTI = ?, user = ?, MAC = ?, model = ?, processor = ?,
-                           GPU = ?, RAM = ?, disk = ?, license_status = ?, ip = ?, activo = ?
-                       WHERE serial = ?""",
-            info_dispositivo[1:] + (info_dispositivo[0],),
-        )
-    else:
-        # INSERT
-        cur.execute(
-            """INSERT INTO Dispositivos 
-                       (serial, DTI, user, MAC, model, processor, GPU, RAM, disk, license_status, ip, activo)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            info_dispositivo,
-        )
-
-
-def setActive_threadsafe(dispositivoEstado, conn):
-    """Versión thread-safe de setActive.
-
-    Args:
-        dispositivoEstado (tuple): Tupla con (serial_dispositivo, powerOn, date)
-        conn (sqlite3.Connection): Conexión thread-safe
-
-    Note:
-        SIEMPRE usar DELETE antes de INSERT para evitar duplicados (1 registro por dispositivo).
-        El caller es responsable de hacer commit() y close().
-    """
-    cur = conn.cursor()
-
-    # DELETE anterior + INSERT nuevo (patrón para 1 registro por dispositivo)
-    cur.execute(
-        "DELETE FROM activo WHERE Dispositivos_serial = ?", (dispositivoEstado[0],)
-    )
-    cur.execute(
-        "INSERT INTO activo (Dispositivos_serial, powerOn, date) VALUES (?, ?, ?)",
-        dispositivoEstado,
-    )
-
-
-def setMemoria_threadsafe(memoria, numero, conn):
-    """Versión thread-safe de setMemoria.
-
-    Args:
-        memoria (tuple): Tupla con (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
-        numero (int): Número del módulo (no usado, deprecado)
-        conn (sqlite3.Connection): Conexión thread-safe
-
-    Note:
-        Schema: Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion
-        El caller es responsable de hacer commit() y close().
-    """
-    cur = conn.cursor()
-    cur.execute(
-        """INSERT INTO memoria 
-                   (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        memoria,
-    )
-
-
-def setAlmacenamiento_threadsafe(almacenamiento, numero, conn):
-    """Versión thread-safe de setAlmacenamiento.
-
-    Args:
-        almacenamiento (tuple): Tupla con (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
-        numero (int): Número del disco (no usado, deprecado)
-        conn (sqlite3.Connection): Conexión thread-safe
-
-    Note:
-        Schema: Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion
-        El caller es responsable de hacer commit() y close().
-    """
-    cur = conn.cursor()
-    cur.execute(
-        """INSERT INTO almacenamiento 
-                   (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-        almacenamiento,
-    )
-
-
-def setaplication_threadsafe(aplicacion, conn):
-    """Versión thread-safe de setaplication.
-
-    Args:
-        aplicacion (tuple): Tupla con (Dispositivos_serial, name, version, publisher)
-        conn (sqlite3.Connection): Conexión thread-safe
-
-    Note:
-        Schema: Dispositivos_serial, name, version, publisher (lowercase)
-        El caller es responsable de hacer commit() y close().
-    """
-    cur = conn.cursor()
-    cur.execute(
-        """INSERT INTO aplicaciones 
-                   (Dispositivos_serial, name, version, publisher)
-                   VALUES (?, ?, ?, ?)""",
-        aplicacion,
-    )
-
-
-def setInformeDiagnostico_threadsafe(informes, conn):
-    """Versión thread-safe de setInformeDiagnostico.
-
-    Args:
-        informes (tuple): Tupla con (Dispositivos_serial, json_diagnostico, reporteDirectX, fecha)
-        conn (sqlite3.Connection): Conexión thread-safe
-
-    Note:
-        Schema: Dispositivos_serial, json_diagnostico, reporteDirectX, fecha
-        El caller es responsable de hacer commit() y close().
-    """
-    cur = conn.cursor()
-    cur.execute(
-        """INSERT INTO informacion_diagnostico 
-                   (Dispositivos_serial, json_diagnostico, reporteDirectX, fecha)
-                   VALUES (?, ?, ?, ?)""",
-        informes,
-    )
-
-
-def limpiar_datos_dispositivo_threadsafe(serial, conn):
-    """Limpia todos los datos anteriores de un dispositivo antes de insertar nuevos.
-
-    Args:
-        serial (str): Serial del dispositivo
-        conn (sqlite3.Connection): Conexión thread-safe
-
-    Note:
-        Usa DELETE en todas las tablas relacionadas para evitar duplicados.
-        El caller es responsable de hacer commit() y close().
-    """
-    cur = conn.cursor()
-
-    # Limpiar datos anteriores
-    cur.execute("DELETE FROM activo WHERE Dispositivos_serial = ?", (serial,))
-    cur.execute("DELETE FROM memoria WHERE Dispositivos_serial = ?", (serial,))
-    cur.execute("DELETE FROM almacenamiento WHERE Dispositivos_serial = ?", (serial,))
-    cur.execute("DELETE FROM aplicaciones WHERE Dispositivos_serial = ?", (serial,))
-    cur.execute(
-        "DELETE FROM informacion_diagnostico WHERE Dispositivos_serial = ?", (serial,)
-    )
 
 
 # pasar todas las consultas sql solo con esta funcion
@@ -286,7 +114,8 @@ def abrir_consulta(
     return statements, params
 
 
-def setaplication(aplicacion=tuple()):
+def setaplication(aplicacion=tuple(), conn=None):
+    cur = conn.cursor() if conn else cursor
     """
     Inserta o actualiza una aplicación en la BD.
 
@@ -296,11 +125,11 @@ def setaplication(aplicacion=tuple()):
     sql, params = abrir_consulta(
         "aplicaciones-select.sql", {"name": aplicacion[1], "publisher": aplicacion[3]}
     )
-    cursor.execute(sql, params)
+    cur.execute(sql, params)
 
-    if cursor.fetchone():
+    if cur.fetchone():
         # Actualizar versión si ya existe
-        cursor.execute(
+        cur.execute(
             """UPDATE aplicaciones 
                        SET version = ?
                        WHERE name = ? AND publisher = ?""",
@@ -308,17 +137,15 @@ def setaplication(aplicacion=tuple()):
         )
     else:
         # Insertar nueva aplicación
-        cursor.execute(
+        cur.execute(
             """INSERT INTO aplicaciones 
                        (Dispositivos_serial, name, version, publisher)
                        VALUES (?,?,?,?)""",
             (aplicacion[0], aplicacion[1], aplicacion[2], aplicacion[3]),
         )
 
-    connection.commit()
 
-
-def setAlmacenamiento(almacenamiento=tuple(), indice=1):
+def setAlmacenamiento(almacenamiento=tuple(), indice=1, conn=None):
     """
     Inserta información de almacenamiento en la BD.
 
@@ -326,18 +153,19 @@ def setAlmacenamiento(almacenamiento=tuple(), indice=1):
         almacenamiento: (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
         indice: Si es 1, marca otros discos del dispositivo como no actuales
     """
+    cur = conn.cursor() if conn else cursor
     # Verificar si ya existe
     sql, params = abrir_consulta(
         "almacenamiento-select.sql",
         {"nombre": almacenamiento[1], "capacidad": almacenamiento[2]},
     )
-    cursor.execute(sql, params)
-    if cursor.fetchone():
+    cur.execute(sql, params)
+    if cur.fetchone():
         return  # Ya existe, no duplicar
 
     # Si es el primer disco, marcar otros como no actuales
     if indice <= 1:
-        cursor.execute(
+        cur.execute(
             """UPDATE almacenamiento 
                        SET actual = ?
                        WHERE Dispositivos_serial = ?""",
@@ -345,7 +173,7 @@ def setAlmacenamiento(almacenamiento=tuple(), indice=1):
         )
 
     # Insertar nuevo almacenamiento
-    cursor.execute(
+    cur.execute(
         """INSERT INTO almacenamiento 
                    (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
                    VALUES (?,?,?,?,?,?)""",
@@ -359,10 +187,8 @@ def setAlmacenamiento(almacenamiento=tuple(), indice=1):
         ),
     )
 
-    connection.commit()
 
-
-def setMemoria(memoria=tuple(), indice=1):
+def setMemoria(memoria=tuple(), indice=1, conn=None):
     """
     Inserta información de módulo RAM en la BD.
 
@@ -370,15 +196,16 @@ def setMemoria(memoria=tuple(), indice=1):
         memoria: (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
         indice: Si es 1, marca otros módulos del dispositivo como no actuales
     """
+    cur = conn.cursor() if conn else cursor
     # Verificar si ya existe por número de serie
     sql, params = abrir_consulta("memoria-select.sql", {"numero_serie": memoria[5]})
-    cursor.execute(sql, params)
-    if cursor.fetchone():
+    cur.execute(sql, params)
+    if cur.fetchone():
         return  # Ya existe, no duplicar
 
     # Si es el primer módulo, marcar otros como no actuales
     if indice <= 1:
-        cursor.execute(
+        cur.execute(
             """UPDATE memoria 
                        SET actual = ?
                        WHERE Dispositivos_serial = ?""",
@@ -386,7 +213,7 @@ def setMemoria(memoria=tuple(), indice=1):
         )
 
     # Insertar nuevo módulo de memoria
-    cursor.execute(
+    cur.execute(
         """INSERT INTO memoria 
                    (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
                    VALUES (?,?,?,?,?,?,?,?)""",
@@ -402,10 +229,8 @@ def setMemoria(memoria=tuple(), indice=1):
         ),
     )
 
-    connection.commit()
 
-
-def setInformeDiagnostico(informes=tuple()):
+def setInformeDiagnostico(informes=tuple(), conn=None):
     """Inserta información de diagnóstico de dispositivo en la base de datos.
 
     Args:
@@ -415,16 +240,16 @@ def setInformeDiagnostico(informes=tuple()):
     Returns:
         None
     """
-    cursor.execute(
+    cur = conn.cursor() if conn else cursor 
+    cur.execute(
         """INSERT INTO informacion_diagnostico 
                    (Dispositivos_serial, json_diagnostico, reporteDirectX, fecha)
                    VALUES (?,?,?,?)""",
         (informes[0], informes[1], informes[2], informes[3]),
     )
-    connection.commit()
 
 
-def setRegistro_cambios(registro=tuple()):
+def setRegistro_cambios(registro=tuple(), conn=None):
     """Registra cambios de especificaciones de hardware/software de un dispositivo.
 
     Args:
@@ -436,7 +261,8 @@ def setRegistro_cambios(registro=tuple()):
     Returns:
         None
     """
-    cursor.execute(
+    cur = conn.cursor() if conn else cursor
+    cur.execute(
         """INSERT INTO registro_cambios 
                    (Dispositivos_serial, user, processor, GPU, RAM, disk, license_status, ip, date)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
@@ -452,7 +278,6 @@ def setRegistro_cambios(registro=tuple()):
             registro[8],
         ),
     )
-    connection.commit()
 
 
 def setDevice(info_dispositivo=tuple(), conn=None):
@@ -593,7 +418,7 @@ def actualizar_serial_temporal(serial_real, mac):
     return True
 
 
-def setActive(dispositivoEstado=tuple()):
+def setActive(dispositivoEstado=tuple(), conn=None):
     """Inserta estado de actividad de un dispositivo (encendido/apagado).
 
     Args:
@@ -608,12 +433,12 @@ def setActive(dispositivoEstado=tuple()):
         SIEMPRE usar DELETE antes de INSERT para evitar duplicados (1 registro por dispositivo).
         Ver logica_servidor.py para implementación correcta.
     """
-    cursor.execute(
+    cur = conn.cursor() if conn else cursor
+    cur.execute(
         """INSERT INTO activo 
                    VALUES (?,?,?)""",
         (dispositivoEstado[0], dispositivoEstado[1], dispositivoEstado[2]),
     )
-    connection.commit()
 
 
 def set_dispositivo_inicial(ip, mac):
@@ -635,3 +460,27 @@ def set_dispositivo_inicial(ip, mac):
         (serial_provisional, mac, ip, False),
     )
     connection.commit()
+    
+    
+def limpiar_datos_dispositivo_threadsafe(serial, conn):
+    """Limpia todos los datos anteriores de un dispositivo antes de insertar nuevos.
+
+    Args:
+        serial (str): Serial del dispositivo
+        conn (sqlite3.Connection): Conexión thread-safe
+
+    Note:
+        Usa DELETE en todas las tablas relacionadas para evitar duplicados.
+        El caller es responsable de hacer commit() y close().
+    """
+    cur = conn.cursor()
+
+    # Limpiar datos anteriores
+    cur.execute("DELETE FROM activo WHERE Dispositivos_serial = ?", (serial,))
+    cur.execute("DELETE FROM memoria WHERE Dispositivos_serial = ?", (serial,))
+    cur.execute("DELETE FROM almacenamiento WHERE Dispositivos_serial = ?", (serial,))
+    cur.execute("DELETE FROM aplicaciones WHERE Dispositivos_serial = ?", (serial,))
+    cur.execute(
+        "DELETE FROM informacion_diagnostico WHERE Dispositivos_serial = ?", (serial,)
+    )
+ 

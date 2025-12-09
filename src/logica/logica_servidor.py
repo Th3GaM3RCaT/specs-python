@@ -1,3 +1,4 @@
+from concurrent.futures import thread
 from glob import glob
 from json import JSONDecodeError, dump, load, loads, dumps
 from socket import AF_INET, SOCK_STREAM, socket
@@ -223,7 +224,7 @@ class Scanner:
                             False,
                         )
                         sql.setDevice(
-                            datos_basicos, conn=conn
+                            datos_basicos, conn
                         )  # Pasar conexión thread-safe
                         inserted += 1
                     else:
@@ -546,7 +547,8 @@ def consultar_informacion(conn, addr):
             # Intentar decodificar y parsear cuando tengamos datos completos
             try:
                 json_data = loads(buffer.decode("utf-8"))
-
+                
+                thread_conn = sql.get_thread_safe_connection()
                 # SECURITY: Validar autenticación
                 if SECURITY_ENABLED:
                     token = json_data.get("auth_token")
@@ -647,29 +649,28 @@ def consultar_informacion(conn, addr):
                 datos_dispositivo = (serial_a_usar,) + datos_dispositivo[1:]
                 
                 # Insertar/actualizar dispositivo (UPSERT por serial)
-                sql.setDevice(datos_dispositivo)
+                sql.setDevice(datos_dispositivo, thread_conn)
                 print(f"Dispositivo {serial_a_usar} guardado en DB")
 
                 # Actualizar estado activo
-                sql.setActive((serial_a_usar, True, datetime.now().isoformat()))
-
+                sql.setActive((serial_a_usar, True, datetime.now().isoformat()), thread_conn)
                 # Guardar módulos RAM
                 modulos_ram = parsear_modulos_ram(json_data)
                 for i, modulo in enumerate(modulos_ram, 1):
-                    sql.setMemoria(modulo, i)
+                    sql.setMemoria(modulo, i, thread_conn)
                 print(f"Guardados {len(modulos_ram)} módulos de RAM")
 
                 # Guardar almacenamiento
                 discos = parsear_almacenamiento(json_data)
                 for i, disco in enumerate(discos, 1):
-                    sql.setAlmacenamiento(disco, i)
+                    sql.setAlmacenamiento(disco, i, thread_conn)
                 print(f"Guardados {len(discos)} dispositivos de almacenamiento")
 
                 # Guardar aplicaciones
                 aplicaciones = parsear_aplicaciones(json_data)
                 for app in aplicaciones:
                     try:
-                        sql.setaplication(app)
+                        sql.setaplication(app, thread_conn)
                     except:
                         pass  # Algunas apps pueden dar error, continuar
                 print(f"Guardadas {len(aplicaciones)} aplicaciones")
@@ -678,11 +679,11 @@ def consultar_informacion(conn, addr):
                 dxdiag_txt = json_data.get("dxdiag_output_txt", "")
                 json_str = dumps(json_data, indent=2)
                 sql.setInformeDiagnostico(
-                    (serial_a_usar, json_str, dxdiag_txt, datetime.now().isoformat())
+                    (serial_a_usar, json_str, dxdiag_txt, datetime.now().isoformat()), thread_conn
                 )
 
                 # Commit cambios
-                sql.connection.commit()
+                thread_conn.commit()
                 print(f"[OK] Datos del dispositivo {serial_a_usar} guardados exitosamente")
 
                 # Opcional: guardar backup en JSON para debug
@@ -925,11 +926,11 @@ async def solicitar_datos_cliente(client_ip, client_port=5256, timeout=30):
                 print(f"        -> Datos anteriores limpiados")
 
                 # Insertar/actualizar dispositivo
-                sql.setDevice_threadsafe(datos_dispositivo, thread_conn)
+                sql.setDevice(datos_dispositivo, thread_conn)
                 print(f"        -> Dispositivo guardado: {datos_dispositivo}")
 
                 # Actualizar estado activo
-                sql.setActive_threadsafe(
+                sql.setActive(
                     (serial, True, datetime.now().isoformat()), thread_conn
                 )
                 print(f"        -> Estado activo guardado")
@@ -938,27 +939,27 @@ async def solicitar_datos_cliente(client_ip, client_port=5256, timeout=30):
                 modulos_ram = parsear_modulos_ram(json_data)
                 print(f"        -> RAM: {len(modulos_ram)} modulos")
                 for i, modulo in enumerate(modulos_ram, 1):
-                    sql.setMemoria_threadsafe(modulo, i, thread_conn)
+                    sql.setMemoria(modulo, i, thread_conn)
 
                 # Guardar almacenamiento
                 discos = parsear_almacenamiento(json_data)
                 print(f"        -> Almacenamiento: {len(discos)} discos")
                 for i, disco in enumerate(discos, 1):
-                    sql.setAlmacenamiento_threadsafe(disco, i, thread_conn)
+                    sql.setAlmacenamiento(disco, i, thread_conn)
 
                 # Guardar aplicaciones
                 aplicaciones = parsear_aplicaciones(json_data)
                 print(f"        -> Aplicaciones: {len(aplicaciones)} apps")
                 for app in aplicaciones:
                     try:
-                        sql.setaplication_threadsafe(app, thread_conn)
+                        sql.setaplication(app, thread_conn)
                     except:
                         pass  # Continuar si alguna falla
 
                 # Guardar informe diagnóstico completo
                 dxdiag_txt = json_data.get("dxdiag_output_txt", "")
                 json_str = dumps(json_data, indent=2)
-                sql.setInformeDiagnostico_threadsafe(
+                sql.setInformeDiagnostico(
                     (serial, json_str, dxdiag_txt, datetime.now().isoformat()),
                     thread_conn,
                 )
@@ -1198,7 +1199,7 @@ def monitorear_dispositivos_periodicamente(
                 # Hacer ping al dispositivo
                 try:
                     from subprocess import run, CREATE_NO_WINDOW
-
+                    thread_conn = sql.get_thread_safe_connection()
                     ping_result = run(
                         ["ping", "-n", "1", "-w", "1000", ip],
                         capture_output=True,
@@ -1209,7 +1210,9 @@ def monitorear_dispositivos_periodicamente(
                     esta_activo = ping_result.returncode == 0
 
                     # Actualizar estado en DB
-                    sql.setActive((serial, esta_activo, datetime.now().isoformat()))
+                    sql.setActive((serial, esta_activo, datetime.now().isoformat()),thread_conn)
+                    thread_conn.commit()
+                    thread_conn.close()
 
                     if esta_activo:
                         activos += 1
@@ -1219,7 +1222,10 @@ def monitorear_dispositivos_periodicamente(
 
                 except Exception as e:
                     print(f"  {ip} ({serial}): Error - {e}")
-                    sql.setActive((serial, False, datetime.now().isoformat()))
+                    thread_conn = sql.get_thread_safe_connection()
+                    sql.setActive((serial, False, datetime.now().isoformat()), thread_conn)
+                    thread_conn.commit()
+                    thread_conn.close()
 
             # Commit cambios
             sql.connection.commit()
