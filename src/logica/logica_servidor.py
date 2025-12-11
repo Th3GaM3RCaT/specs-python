@@ -531,6 +531,89 @@ def parsear_aplicaciones(json_data):
     return aplicaciones
 
 
+def detectar_cambios_hardware(serial, json_data, thread_conn):
+    """Detecta si el hardware ha cambiado comparando con el estado anterior.
+
+    Args:
+        serial (str): Serial del dispositivo
+        json_data (dict): Datos nuevos del cliente
+        thread_conn (sqlite3.Connection): Conexión thread-safe
+
+    Returns:
+        bool: True si hay cambios, False si es igual al estado anterior
+
+    Note:
+        - Registra el cambio en registro_cambios si se detectan diferencias
+        - Compara: processor, GPU, RAM total, disco total, license_status, ip, usuario
+        - Se ejecuta ANTES de actualizar los datos
+    """
+    from datetime import datetime
+    
+    cur = thread_conn.cursor()
+    
+    # Obtener datos actuales del dispositivo
+    cur.execute(
+        """SELECT processor, GPU, RAM, disk, license_status, ip, user 
+           FROM Dispositivos WHERE serial = ?""",
+        (serial,)
+    )
+    datos_actuales = cur.fetchone()
+    
+    if not datos_actuales:
+        # Nuevo dispositivo, no hay cambios previos
+        return False
+    
+    # Extraer datos nuevos del JSON
+    processor_nuevo = json_data.get("Processor", "")
+    gpu_nuevo = json_data.get("Display Adapter", "")
+    ram_nuevo = json_data.get("RAM", "")  # Ej: "16GB"
+    disk_nuevo = json_data.get("Total Disk Size", "")  # Ej: "953GB"
+    license_nuevo = json_data.get("license_status", False)
+    ip_nuevo = json_data.get("client_ip", "")
+    user_nuevo = json_data.get("User", "")
+    
+    # Comparar con datos anteriores
+    (processor_ant, gpu_ant, ram_ant, disk_ant, license_ant, ip_ant, user_ant) = datos_actuales
+    
+    # Detectar cambios (ignorar espacios y mayúsculas)
+    cambios = [
+        processor_nuevo.strip() != (processor_ant or "").strip(),
+        gpu_nuevo.strip() != (gpu_ant or "").strip(),
+        ram_nuevo.strip() != (ram_ant or "").strip(),
+        disk_nuevo.strip() != (disk_ant or "").strip(),
+        license_nuevo != license_ant,
+        ip_nuevo != ip_ant,
+        user_nuevo != user_ant,
+    ]
+    
+    if any(cambios):
+        print(f"[CAMBIO DETECTADO] Dispositivo {serial}:")
+        if cambios[0]:
+            print(f"  Procesador: {processor_ant} -> {processor_nuevo}")
+        if cambios[1]:
+            print(f"  GPU: {gpu_ant} -> {gpu_nuevo}")
+        if cambios[2]:
+            print(f"  RAM: {ram_ant} -> {ram_nuevo}")
+        if cambios[3]:
+            print(f"  Disco: {disk_ant} -> {disk_nuevo}")
+        if cambios[4]:
+            print(f"  Licencia: {license_ant} -> {license_nuevo}")
+        if cambios[5]:
+            print(f"  IP: {ip_ant} -> {ip_nuevo}")
+        if cambios[6]:
+            print(f"  Usuario: {user_ant} -> {user_nuevo}")
+        
+        # Registrar el cambio en la BD
+        sql.registrar_cambio_hardware(
+            serial, user_nuevo, processor_nuevo, gpu_nuevo, ram_nuevo, 
+            disk_nuevo, license_nuevo, ip_nuevo, thread_conn
+        )
+        
+        return True
+    
+    return False
+
+
 def consultar_informacion(conn, addr):
     """Recibe información del cliente y la almacena en la base de datos.
 
@@ -691,6 +774,9 @@ def consultar_informacion(conn, addr):
                 # Insertar/actualizar dispositivo (UPSERT por serial)
                 sql.setDevice(datos_dispositivo, thread_conn)
                 print(f"Dispositivo {serial_a_usar} guardado en DB")
+                
+                # Detectar cambios de hardware vs estado anterior
+                detectar_cambios_hardware(serial_a_usar, json_data, thread_conn)
 
                 # Actualizar estado activo
                 sql.setActive((serial_a_usar, True, datetime.now().isoformat()), thread_conn)

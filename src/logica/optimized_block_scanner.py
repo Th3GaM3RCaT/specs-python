@@ -587,7 +587,7 @@ def main(callback_progreso=None, ranges=None):
             pass
 
     # --- Guardar IPs descubiertas en CSV temporal (sin MACs todavía) ---
-    temp_csv = "temp_scan.csv"
+    temp_csv = "discovered_devices.csv"
 
     # 1. Leer dispositivos existentes del CSV (preservar lista histórica)
     existing_devices = {}

@@ -146,14 +146,23 @@ def setaplication(aplicacion=tuple(), conn=None):
 
 def setAlmacenamiento(almacenamiento=tuple(), indice=1, conn=None):
     """
-    Inserta información de almacenamiento en la BD.
+    Inserta información de almacenamiento (discos) con tracking de cambios.
 
     Args:
         almacenamiento: (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
         indice: Si es 1, marca otros discos del dispositivo como no actuales
+        conn: Conexión thread-safe (si None usa la global)
+
+    Note:
+        - Si el disco NO existe: lo inserta con actual=True
+        - Si el disco YA existe: no lo duplica
+        - Al insertar el primero: marca otros como actual=False (cambio generacional)
     """
     cur = conn.cursor() if conn else cursor
-    # Verificar si ya existe
+    serial_dispositivo = almacenamiento[0]
+    nombre_disco = almacenamiento[1]
+    
+    # Verificar si ya existe por nombre y capacidad
     sql, params = abrir_consulta(
         "almacenamiento-select.sql",
         {"nombre": almacenamiento[1], "capacidad": almacenamiento[2]},
@@ -161,53 +170,65 @@ def setAlmacenamiento(almacenamiento=tuple(), indice=1, conn=None):
     cur.execute(sql, params)
     if cur.fetchone():
         return  # Ya existe, no duplicar
-
-    # Si es el primer disco, marcar otros como no actuales
+    
+    # NUEVO DISCO: Marcar discos anteriores como desactivados
+    # Si es el primero en la lista (indice=1), todos los demás pasan a actual=False
     if indice <= 1:
         cur.execute(
             """UPDATE almacenamiento 
-                       SET actual = ?
-                       WHERE Dispositivos_serial = ?""",
-            (False, almacenamiento[0]),
+               SET actual = 0
+               WHERE Dispositivos_serial = ? AND actual = 1""",
+            (serial_dispositivo,),
         )
 
-    # Insertar nuevo almacenamiento
+    # Insertar nuevo almacenamiento con actual=True
     cur.execute(
         """INSERT INTO almacenamiento 
-                   (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
-                   VALUES (?,?,?,?,?,?)""",almacenamiento,
+           (Dispositivos_serial, nombre, capacidad, tipo, actual, fecha_instalacion)
+           VALUES (?,?,?,?,?,?)""",almacenamiento,
     )
 
 
 def setMemoria(memoria=tuple(), indice=1, conn=None):
     """
-    Inserta información de módulo RAM en la BD.
+    Inserta información de módulo RAM en la BD con tracking de cambios.
 
     Args:
         memoria: (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
         indice: Si es 1, marca otros módulos del dispositivo como no actuales
+        conn: Conexión thread-safe (si None usa la global)
+
+    Note:
+        - Si el módulo NO existe (nuevo serial): lo inserta con actual=True
+        - Si el módulo YA existe: no lo duplica
+        - Al insertar el primero: marca otros como actual=False (cambio generacional)
     """
     cur = conn.cursor() if conn else cursor
+    serial_dispositivo = memoria[0]
+    numero_serie_ram = memoria[5]
+    
     # Verificar si ya existe por número de serie
-    sql, params = abrir_consulta("memoria-select.sql", {"numero_serie": memoria[5]})
+    sql, params = abrir_consulta("memoria-select.sql", {"numero_serie": numero_serie_ram})
     cur.execute(sql, params)
     if cur.fetchone():
-        return  # Ya existe, no duplicar
-
-    # Si es el primer módulo, marcar otros como no actuales
+        return  # Ya existe con el mismo serial, no duplicar
+    
+    # NUEVO MÓDULO: Marcar módulos anteriores como desactivados
+    # Si es el primero en la lista (indice=1), todos los demás pasan a actual=False
     if indice <= 1:
         cur.execute(
             """UPDATE memoria 
-                       SET actual = ?
-                       WHERE Dispositivos_serial = ?""",
-            (False, memoria[0]),
+               SET actual = 0
+               WHERE Dispositivos_serial = ? AND actual = 1""",
+            (serial_dispositivo,),
         )
-
-    # Insertar nuevo módulo de memoria
+    
+    # Insertar nuevo módulo de memoria con actual=True
     cur.execute(
         """INSERT INTO memoria 
-                   (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
-                   VALUES (?,?,?,?,?,?,?,?)""",memoria,
+           (Dispositivos_serial, modulo, fabricante, capacidad, velocidad, numero_serie, actual, fecha_instalacion)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        memoria,
     )
 
 
@@ -429,7 +450,42 @@ def set_dispositivo_inicial(ip, mac):
         (serial_provisional, mac, ip, False),
     )
     connection.commit()
+
+
+def registrar_cambio_hardware(serial, user, processor, gpu, ram, disk, license_status, ip, conn=None):
+    """Registra un cambio de hardware/software en el histórico.
+
+    Args:
+        serial (str): Serial del dispositivo
+        user (str): Usuario del dispositivo
+        processor (str): Procesador actual
+        gpu (str): GPU actual
+        ram (str): RAM actual (total en formato legible)
+        disk (str): Almacenamiento actual (total en formato legible)
+        license_status (bool): Estado de licencia
+        ip (str): Dirección IP
+        conn (sqlite3.Connection): Conexión thread-safe (si None usa la global)
+
+    Note:
+        - Registra el timestamp actual automáticamente
+        - Usado cuando hay cambios detectados en hardware vs estado anterior
+        - Se ejecuta ANTES de actualizar los datos nuevos
+    """
+    from datetime import datetime
     
+    cur = conn.cursor() if conn else cursor
+    fecha_cambio = datetime.now().isoformat()
+    
+    cur.execute(
+        """INSERT INTO registro_cambios 
+           (Dispositivos_serial, user, processor, GPU, RAM, disk, license_status, ip, date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (serial, user, processor, gpu, ram, disk, license_status, ip, fecha_cambio)
+    )
+    
+    if not conn:
+        connection.commit()
+
     
 def limpiar_datos_dispositivo_threadsafe(serial, conn):
     """Limpia todos los datos anteriores de un dispositivo antes de insertar nuevos.
