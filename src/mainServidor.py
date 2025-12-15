@@ -118,7 +118,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         )
         self.ui.lineEditBuscar.textChanged.connect(self.filtrar_dispositivos)
         self.ui.comboBoxFiltro.currentTextChanged.connect(self.aplicar_filtro)
-        self.ui.btnActualizar.clicked.connect(self.iniciar_escaneo_completo)
         self.ui.scan_button.clicked.connect(self.iniciar_escaneo_con_rangos)
 
         # Botones de acciones
@@ -140,19 +139,11 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.actionBackupBD.triggered.connect(self.hacer_backup)
         self.ui.actionAcercaDe.triggered.connect(self.acerca_de)
         self.ui.actionManual.triggered.connect(self.abrir_manual)
-        self.ui.actiondetener.triggered.connect(self.detener_servidor)
         
-        # Botón de escaneo inicial (opcional)
-        btn_escanear = getattr(self.ui, "btnEscanear", None)
-        if btn_escanear:
-            btn_escanear.clicked.connect(self.iniciar_escaneo_completo)
         self.configurar_tabla()
 
         # Deshabilitar botones hasta seleccionar dispositivo
         self.deshabilitar_botones_detalle()
-
-        # Cargar datos iniciales y verificar si hay datos
-        self.cargar_datos_iniciales()
 
         # Iniciar servidor en segundo plano
         self.iniciar_servidor()
@@ -166,7 +157,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.timer_consulta_diaria = QtCore.QTimer(self)
         self.timer_consulta_diaria.timeout.connect(self.consulta_diaria_clientes)
         self.timer_consulta_diaria.start(86400000)  # 86400000 ms = 24 horas
-
+        
     def cargar_datos_iniciales(self):
         """Carga datos de la DB. Si no hay datos, inicia actualización automática."""
         try:
@@ -188,7 +179,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 QtCore.QTimer.singleShot(1000, self.iniciar_escaneo_completo)
         except Exception as e:
             print(f"Error verificando DB: {e}")
-            self.ui.statusbar.showMessage(f"ERROR: No se pudo acceder a la DB", 5000)
+        self.ui.statusbar.showMessage(f"ERROR: No se pudo acceder a la DB", 5000)
 
     def iniciar_servidor(self):
         """Inicia el servidor TCP en segundo plano para recibir datos de clientes."""
@@ -872,6 +863,32 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
 
                 dialog.exec()
 
+    def iniciar_escaneo_completo(self):
+        """
+        Recarga la tabla de dispositivos desde la base de datos.
+        El servidor ya no hace escaneos - espera conexiones de clientes.
+        """
+        self.ui.statusbar.showMessage("Recargando lista de dispositivos...", 0)
+
+        # Limpiar lista de serials encontrados
+        self.serials_encontrados.clear()
+
+        # Detener timer de verificación automática durante la recarga
+        if hasattr(self, "timer_estados") and self.timer_estados:
+            self.timer_estados.stop()
+
+        # Simplemente recargar la tabla desde DB
+        try:
+            self.cargar_dispositivos(verificar_ping=False)
+            self.ui.statusbar.showMessage("Lista de dispositivos actualizada", 3000)
+        except Exception as e:
+            self.ui.statusbar.showMessage(f"Error al recargar dispositivos: {e}", 5000)
+
+            # Reiniciar timer de verificación automática
+            if hasattr(self, "timer_estados") and self.timer_estados:
+                self.timer_estados.start()
+
+
     def ver_aplicaciones(self):
         """Abre ventana de aplicaciones instaladas"""
         selected = self.ui.tableDispositivos.selectedItems()
@@ -1150,34 +1167,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
 
                 dialog.exec()
 
-    def iniciar_escaneo_completo(self):
-        """
-        Recarga la tabla de dispositivos desde la base de datos.
-        El servidor ya no hace escaneos - espera conexiones de clientes.
-        """
-        self.ui.statusbar.showMessage("Recargando lista de dispositivos...", 0)
-        self.ui.btnActualizar.setEnabled(False)
-
-        # Limpiar lista de serials encontrados
-        self.serials_encontrados.clear()
-
-        # Detener timer de verificación automática durante la recarga
-        if hasattr(self, "timer_estados") and self.timer_estados:
-            self.timer_estados.stop()
-
-        # Simplemente recargar la tabla desde DB
-        try:
-            self.cargar_dispositivos(verificar_ping=False)
-            self.ui.statusbar.showMessage("Lista de dispositivos actualizada", 3000)
-        except Exception as e:
-            self.ui.statusbar.showMessage(f"Error al recargar dispositivos: {e}", 5000)
-        finally:
-            self.ui.btnActualizar.setEnabled(True)
-
-            # Reiniciar timer de verificación automática
-            if hasattr(self, "timer_estados") and self.timer_estados:
-                self.timer_estados.start()
-
     def on_servidor_error(self, error):
         """Error en el hilo del servidor TCP"""
         self.ui.statusbar.showMessage(f"ERROR: Error en servidor TCP: {error}", 5000)
@@ -1185,39 +1174,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         """Error en el hilo del servidor TCP"""
         self.ui.statusbar.showMessage(f"ERROR: Error en servidor TCP: {error}", 5000)
         print(f"[ERROR] Servidor TCP falló: {error}")
-
-    def on_full_scan_terminado(self, resultado):
-        """Handler para cuando ServerManager.run_full_scan finaliza.
-
-        Resultado esperado: (inserted, activos, total, csv_path)
-        """
-        try:
-            inserted, activos, total, csv_path = resultado
-        except Exception:
-            # Si la forma no es la esperada, intentar desempaquetar parcialmente
-            try:
-                inserted = resultado[0]
-                activos = resultado[1] if len(resultado) > 1 else 0
-                total = resultado[2] if len(resultado) > 2 else 0
-            except Exception:
-                inserted = 0
-                activos = 0
-                total = 0
-
-        # Actualizar status y recargar vista (equivalente a finalizar_escaneo_completo)
-        self.ui.statusbar.showMessage(
-            f">> Paso 4/4: Escaneo finalizado. Insertados: {inserted}. {activos}/{total} clientes respondieron",
-            5000,
-        )
-        # Recargar tabla SIN verificar ping (estados ya actualizados por escaneo)
-        self.cargar_dispositivos(
-            verificar_ping=False, filtrar_serials=self.serials_encontrados
-        )
-        self.ui.btnActualizar.setEnabled(True)
-
-        # Reiniciar timer de verificación automática
-        if hasattr(self, "timer_estados") and self.timer_estados:
-            self.timer_estados.start(20000)
 
     def poblar_db_desde_csv(self):
         """Paso 2: Lee CSV y crea registros básicos en DB (solo IP/MAC)"""
@@ -1241,14 +1197,11 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 return inserted
             except Exception as e:
                 print(f">> Error poblando DB: {e}")
-                
-
                 print_exc()
                 return 0
 
         self.hilo_poblado = Hilo(callback_poblar)
         self.hilo_poblado.terminado.connect(self.on_poblado_terminado)
-        self.hilo_poblado.error.connect(self.on_poblado_error)
         self.hilo_poblado.start()
 
     def on_poblado_terminado(self, insertados):
@@ -1257,13 +1210,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             f">> Paso 2/4: DB poblada ({insertados} nuevos) - Anunciando servidor...", 0
         )
         # Paso 3: Anunciar servidor y esperar conexiones
-        self.anunciar_y_esperar_clientes()
-
-    def on_poblado_error(self, error):
-        """Error en Paso 2"""
-        self.ui.statusbar.showMessage(f"ERROR: Error poblando DB: {error}", 5000)
-        self.ui.btnActualizar.setEnabled(True)
-        
+        self.anunciar_y_esperar_clientes() 
     def consulta_diaria_clientes(self):
         """Ejecuta consulta automática de clientes a las 2 AM diariamente"""
         from datetime import datetime
@@ -1274,7 +1221,7 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             return
         
         hora_actual = datetime.now().hour
-        
+        # TODO: permitir cambiar manualmente en configuración
         # Solo ejecutar entre 2 AM y 3 AM (horario de baja carga)
         if hora_actual != 2:
             return  # Esperar al próximo ciclo
@@ -1331,36 +1278,8 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             f">> Paso 3/4: {activos}/{total} clientes respondieron - Actualizando vista...",
             0,
         )
-        # Paso 4: Recargar tabla filtrando solo los encontrados
-        self.finalizar_escaneo_completo()
-        """Callback Paso 3 completado"""
-        activos, total = resultado
-        self.ui.statusbar.showMessage(
-            f">> Paso 3/4: {activos}/{total} clientes respondieron - Actualizando vista...",
-            0,
-        )
-        # Paso 4: Recargar tabla filtrando solo los encontrados
-    def on_consulta_error(self, error):
-        """Error en Paso 3"""
-        self.consulta_en_curso = False
-        
-        self.ui.statusbar.showMessage(
-            f"ERROR: Error consultando clientes: {error}", 5000
-        )
-        self.ui.btnActualizar.setEnabled(True)
-        self.ui.btnActualizar.setEnabled(True)
 
-    def finalizar_escaneo_completo(self):
-        """Paso 4: Recargar tabla con datos actualizados"""
-        print("\n=== Finalizando escaneo completo ===")
-        self.cargar_dispositivos(
-            verificar_ping=False, filtrar_serials=self.serials_encontrados
-        )
-        self.ui.statusbar.showMessage(
-            ">> Escaneo completo finalizado exitosamente", 5000
-        )
-        self.ui.btnActualizar.setEnabled(True)
-        print(">> Proceso completado\n")
+
 
         # Reiniciar timer de verificación automática
         if hasattr(self, "timer_estados") and self.timer_estados:
@@ -1728,12 +1647,15 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
             from PySide6.QtWidgets import QMessageBox, QFileDialog
             import shutil
             from pathlib import Path
+            import sys
+            
+            output_dir = project_root / "data"
             
             # Obtener ruta de la base de datos actual
             if hasattr(sys, "_MEIPASS"):
                 db_actual = Path("specs.db")
             else:
-                db_actual = Path(__file__).parent.parent.parent / "data" / "specs.db"
+                db_actual = output_dir / "specs.db"
             
             if not db_actual.exists():
                 QMessageBox.warning(
@@ -1840,35 +1762,6 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
                 "<p><i>Para más información, consulte la documentación en docs/</i></p>"
                 "<p><i>O revise el repositorio en GitHub:</i></p>"
                 "<p><a href=\"https://github.com/Th3GaM3RCaT/SpecsNet\">https://github.com/Th3GaM3RCaT/SpecsNet</a></p>"
-            )
-
-    def detener_servidor(self):
-        """Detiene el servidor TCP."""
-        from PySide6.QtWidgets import QMessageBox
-        
-        respuesta = QMessageBox.question(
-            self,
-            "Detener Servidor",
-            "¿Desea detener el servidor TCP?\n\n"
-            "No se recibirán datos de clientes hasta reiniciar.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        
-        if respuesta == QMessageBox.StandardButton.Yes:
-            if self.server_mgr:
-                try:
-                    self.server_mgr.stop_tcp_server()
-                    self.ui.statusbar.showMessage("Servidor TCP detenido", 5000)
-                    print("[INFO] Servidor TCP detenido por usuario")
-                except:
-                    pass
-            
-            QMessageBox.information(
-                self,
-                "Servidor Detenido",
-                "El servidor TCP ha sido detenido.\n\n"
-                "Para reiniciarlo, cierre y vuelva a abrir la aplicación."
             )
 
 def main():

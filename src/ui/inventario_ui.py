@@ -121,13 +121,6 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_header.addWidget(self.comboBoxFiltro)
 
-        self.btnActualizar = QPushButton(self.frameHeader)
-        self.btnActualizar.setObjectName(u"btnActualizar")
-        self.btnActualizar.setEnabled(False)
-        self.btnActualizar.setFlat(True)
-
-        self.horizontalLayout_header.addWidget(self.btnActualizar)
-
 
         self.verticalLayout.addWidget(self.frameHeader)
 
@@ -389,7 +382,6 @@ class Ui_MainWindow(object):
         self.comboBoxFiltro.setItemText(4, QCoreApplication.translate("MainWindow", u"Apagados", None))
         self.comboBoxFiltro.setItemText(5, QCoreApplication.translate("MainWindow", u"Sin Licencia", None))
 
-        self.btnActualizar.setText(QCoreApplication.translate("MainWindow", u"Actualizar", None))
         self.labelContador.setText(QCoreApplication.translate("MainWindow", u"Mostrando 0 dispositivos", None))
         ___qtablewidgetitem = self.tableDispositivos.horizontalHeaderItem(0)
         ___qtablewidgetitem.setText(QCoreApplication.translate("MainWindow", u"Estado", None));
