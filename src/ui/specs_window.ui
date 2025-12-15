@@ -194,8 +194,8 @@
     <property name="title">
      <string>Opciones</string>
     </property>
-    <addaction name="actionProgramar_hora_de_ejecuci_n"/>
-    <addaction name="actionDetener_ejecuci_n"/>
+    <addaction name="actionScheduleTaskTime"/>
+    <addaction name="actionCancelTask"/>
    </widget>
    <addaction name="menuOpciones"/>
   </widget>
@@ -204,12 +204,12 @@
     <bool>true</bool>
    </property>
   </widget>
-  <action name="actionProgramar_hora_de_ejecuci_n">
+  <action name="actionScheduleTaskTime">
    <property name="text">
     <string>Programar hora de ejecución</string>
    </property>
   </action>
-  <action name="actionDetener_ejecuci_n">
+  <action name="actionCancelTask">
    <property name="text">
     <string>Detener ejecución</string>
    </property>

@@ -571,7 +571,6 @@
     </property>
     <addaction name="actionConfiguracion"/>
     <addaction name="actionBackupBD"/>
-    <addaction name="actiondetener"/>
    </widget>
    <widget class="QMenu" name="menuAyuda">
     <property name="title">

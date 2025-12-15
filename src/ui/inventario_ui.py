@@ -343,7 +343,6 @@ class Ui_MainWindow(object):
         self.menuVer.addAction(self.actionVerReportes)
         self.menuHerramientas.addAction(self.actionConfiguracion)
         self.menuHerramientas.addAction(self.actionBackupBD)
-        self.menuHerramientas.addAction(self.actiondetener)
         self.menuAyuda.addAction(self.actionAcercaDe)
         self.menuAyuda.addAction(self.actionManual)
 
