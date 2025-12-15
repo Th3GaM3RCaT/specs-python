@@ -567,7 +567,7 @@
      <string>Archivo</string>
     </property>
     <addaction name="actionExportarExcel"/>
-    <addaction name="actionExportarPDF"/>
+    <addaction name="actionExportarCSV"/>
     <addaction name="separator"/>
     <addaction name="actionSalir"/>
    </widget>
@@ -603,9 +603,9 @@
     <string>Exportar a Excel</string>
    </property>
   </action>
-  <action name="actionExportarPDF">
+  <action name="actionExportarCSV">
    <property name="text">
-    <string>Exportar a PDF</string>
+    <string>Exportar a CSV</string>
    </property>
   </action>
   <action name="actionSalir">

@@ -1,6 +1,7 @@
 import os
 from sys import path, argv
 from pathlib import Path
+from datetime import datetime
 
 # Agregar la raíz del proyecto al path para importaciones absolutas
 project_root = Path(__file__).parent.parent
@@ -127,6 +128,20 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.ui.btnVerMemoria.clicked.connect(self.ver_memoria)
         self.ui.btnVerHistorialCambios.clicked.connect(self.ver_historial)
 
+        # Botones de exportación
+        self.ui.actionExportarExcel.triggered.connect(self.exportar_xlsx)
+        self.ui.actionExportarCSV.triggered.connect(self.exportar_csv)
+        
+        # Acciones del menú
+        self.ui.actionSalir.triggered.connect(self.salir_aplicacion)
+        self.ui.actionVerEstadisticas.triggered.connect(self.ver_estadisticas)
+        self.ui.actionVerReportes.triggered.connect(self.ver_reportes)
+        self.ui.actionConfiguracion.triggered.connect(self.abrir_configuracion)
+        self.ui.actionBackupBD.triggered.connect(self.hacer_backup)
+        self.ui.actionAcercaDe.triggered.connect(self.acerca_de)
+        self.ui.actionManual.triggered.connect(self.abrir_manual)
+        self.ui.actiondetener.triggered.connect(self.detener_servidor)
+        
         # Botón de escaneo inicial (opcional)
         btn_escanear = getattr(self.ui, "btnEscanear", None)
         if btn_escanear:
@@ -1411,6 +1426,450 @@ class InventarioWindow(QMainWindow, Ui_MainWindow):
         self.hilo_escaneo_rangos.terminado.connect(on_terminado)
         self.hilo_escaneo_rangos.start()
         print(">> Hilo de escaneo iniciado.")
+
+    def exportar_csv(self):
+        """Exporta todos los dispositivos de la DB a formato CSV compatible con Excel."""
+        try:
+            from logica.exportar_datos import exportar_con_estado_actual
+            from PySide6.QtWidgets import QMessageBox, QFileDialog
+            
+            # Preguntar al usuario dónde guardar
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            nombre_sugerido = f"inventario_{timestamp}.csv"
+            
+            ruta_archivo, _ = QFileDialog.getSaveFileName(
+                self,
+                "Guardar archivo CSV",
+                nombre_sugerido,
+                "Archivos CSV (*.csv);;Todos los archivos (*.*)"
+            )
+            
+            if not ruta_archivo:
+                return  # Usuario canceló
+            
+            # Exportar usando la conexión de la DB
+            self.ui.statusbar.showMessage("Exportando datos a CSV...", 2000)
+            
+            # Usar la función de exportación con estado actual
+            from logica.exportar_datos import exportar_dispositivos_completo
+            from sql.ejecutar_sql import connection
+            
+            # Generar archivo temporal primero
+            ruta_temp = exportar_dispositivos_completo(connection, formato="csv", incluir_inactivos=True)
+            
+            # Mover a la ubicación elegida por el usuario
+            import shutil
+            shutil.move(ruta_temp, ruta_archivo)
+            
+            self.ui.statusbar.showMessage(f"Datos exportados exitosamente a: {ruta_archivo}", 5000)
+            
+            # Mostrar mensaje de confirmación
+            QMessageBox.information(
+                self,
+                "Exportación Exitosa",
+                f"Los datos se han exportado correctamente a:\n\n{ruta_archivo}\n\n"
+                f"El archivo puede ser abierto directamente en Microsoft Excel."
+            )
+            
+            # Abrir carpeta contenedora
+            from pathlib import Path
+            import subprocess
+            carpeta = Path(ruta_archivo).parent
+            subprocess.run(["explorer", str(carpeta)])
+            
+        except Exception as e:
+            print(f"[ERROR] Error al exportar CSV: {e}")
+            from traceback import print_exc
+            print_exc()
+            
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Error de Exportación",
+                f"No se pudo exportar los datos:\n\n{str(e)}"
+            )
+
+    def exportar_xlsx(self):
+        """Exporta todos los dispositivos de la DB a formato XLSX (Excel nativo)."""
+        try:
+            from logica.exportar_datos import exportar_dispositivos_completo
+            from PySide6.QtWidgets import QMessageBox, QFileDialog
+            from sql.ejecutar_sql import connection
+            
+            # Verificar que openpyxl esté instalado
+            try:
+                import openpyxl
+            except ImportError:
+                QMessageBox.warning(
+                    self,
+                    "Paquete Faltante",
+                    "Para exportar a formato XLSX se requiere el paquete 'openpyxl'.\n\n"
+                    "Instálelo ejecutando:\n"
+                    "pip install openpyxl\n\n"
+                    "Mientras tanto, puede usar la opción 'Exportar a CSV' que no requiere paquetes adicionales."
+                )
+                return
+            
+            # Preguntar al usuario dónde guardar
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            nombre_sugerido = f"inventario_{timestamp}.xlsx"
+            
+            ruta_archivo, _ = QFileDialog.getSaveFileName(
+                self,
+                "Guardar archivo Excel",
+                nombre_sugerido,
+                "Archivos Excel (*.xlsx);;Todos los archivos (*.*)"
+            )
+            
+            if not ruta_archivo:
+                return  # Usuario canceló
+            
+            # Exportar
+            self.ui.statusbar.showMessage("Exportando datos a Excel (XLSX)...", 2000)
+            
+            # Generar archivo temporal primero
+            ruta_temp = exportar_dispositivos_completo(connection, formato="xlsx", incluir_inactivos=True)
+            
+            # Mover a la ubicación elegida por el usuario
+            import shutil
+            shutil.move(ruta_temp, ruta_archivo)
+            
+            self.ui.statusbar.showMessage(f"Datos exportados exitosamente a: {ruta_archivo}", 5000)
+            
+            # Mostrar mensaje de confirmación
+            QMessageBox.information(
+                self,
+                "Exportación Exitosa",
+                f"Los datos se han exportado correctamente a:\n\n{ruta_archivo}\n\n"
+                f"El archivo Excel incluye formato enriquecido y está listo para usar."
+            )
+            
+            # Abrir carpeta contenedora
+            from pathlib import Path
+            import subprocess
+            carpeta = Path(ruta_archivo).parent
+            subprocess.run(["explorer", str(carpeta)])
+            
+        except Exception as e:
+            print(f"[ERROR] Error al exportar XLSX: {e}")
+            from traceback import print_exc
+            print_exc()
+            
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Error de Exportación",
+                f"No se pudo exportar los datos:\n\n{str(e)}"
+            )
+
+    def salir_aplicacion(self):
+        """Cierra la aplicación de forma segura."""
+        from PySide6.QtWidgets import QMessageBox
+        
+        respuesta = QMessageBox.question(
+            self,
+            "Confirmar Salida",
+            "¿Está seguro que desea salir de la aplicación?\n\n" 
+            "El servidor TCP se detendrá y no recibirá datos de clientes.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if respuesta == QMessageBox.StandardButton.Yes:
+            print("[INFO] Cerrando aplicación...")
+            self.close()
+
+    def ver_estadisticas(self):
+        """Muestra estadísticas del inventario."""
+        try:
+            from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem
+            
+            # Consultar estadísticas
+            stats = {}
+            
+            # Total de dispositivos
+            cursor.execute("SELECT COUNT(*) FROM Dispositivos")
+            stats['total'] = cursor.fetchone()[0]
+            
+            # Dispositivos activos
+            cursor.execute("SELECT COUNT(*) FROM Dispositivos WHERE activo = 1")
+            stats['activos'] = cursor.fetchone()[0]
+            
+            # Dispositivos encendidos (último estado)
+            cursor.execute("""
+                SELECT COUNT(DISTINCT Dispositivos_serial) 
+                FROM activo 
+                WHERE powerOn = 1 
+                AND (Dispositivos_serial, date) IN (
+                    SELECT Dispositivos_serial, MAX(date) 
+                    FROM activo 
+                    GROUP BY Dispositivos_serial
+                )
+            """)
+            stats['encendidos'] = cursor.fetchone()[0]
+            
+            # Sin licencia
+            cursor.execute("SELECT COUNT(*) FROM Dispositivos WHERE license_status = 0")
+            stats['sin_licencia'] = cursor.fetchone()[0]
+            
+            # RAM promedio
+            cursor.execute("SELECT AVG(RAM) FROM Dispositivos WHERE RAM > 0")
+            ram_avg = cursor.fetchone()[0]
+            stats['ram_promedio'] = round(ram_avg, 2) if ram_avg else 0
+            
+            # Fabricantes de RAM más comunes
+            cursor.execute("""
+                SELECT fabricante, COUNT(*) as cant 
+                FROM memoria 
+                WHERE actual = 1 AND fabricante IS NOT NULL AND fabricante != ''
+                GROUP BY fabricante 
+                ORDER BY cant DESC 
+                LIMIT 3
+            """)
+            fabricantes = cursor.fetchall()
+            
+            # Crear diálogo
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Estadísticas del Inventario")
+            dialog.resize(500, 400)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Título
+            titulo = QLabel("<h2>Resumen del Inventario</h2>")
+            layout.addWidget(titulo)
+            
+            # Estadísticas generales
+            texto_stats = f"""
+            <p><b>Total de Dispositivos:</b> {stats['total']}</p>
+            <p><b>Dispositivos Activos:</b> {stats['activos']} ({stats['activos']/stats['total']*100:.1f}%)</p>
+            <p><b>Encendidos Actualmente:</b> {stats['encendidos']}</p>
+            <p><b>Sin Licencia:</b> {stats['sin_licencia']}</p>
+            <p><b>RAM Promedio:</b> {stats['ram_promedio']} GB</p>
+            """
+            
+            label_stats = QLabel(texto_stats)
+            layout.addWidget(label_stats)
+            
+            # Fabricantes de RAM
+            if fabricantes:
+                label_fab = QLabel("<h3>Fabricantes de RAM Más Comunes</h3>")
+                layout.addWidget(label_fab)
+                
+                for fab, cant in fabricantes:
+                    label = QLabel(f"• {fab}: {cant} módulos")
+                    layout.addWidget(label)
+            
+            # Botón cerrar
+            btn_cerrar = QPushButton("Cerrar")
+            btn_cerrar.clicked.connect(dialog.close)
+            layout.addWidget(btn_cerrar)
+            
+            dialog.exec()
+            
+        except Exception as e:
+            print(f"[ERROR] Error mostrando estadísticas: {e}")
+            from traceback import print_exc
+            print_exc()
+
+    def ver_reportes(self):
+        """Genera y muestra reportes del sistema."""
+        from PySide6.QtWidgets import QMessageBox
+        
+        QMessageBox.information(
+            self,
+            "Reportes",
+            "Funcionalidad de reportes en desarrollo.\n\n"
+            "Por ahora puede usar las opciones de exportación para generar reportes en Excel."
+        )
+
+    def abrir_configuracion(self):
+        """Abre el diálogo de configuración."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QLineEdit, QFormLayout
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Configuración del Servidor")
+        dialog.resize(400, 300)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Título
+        titulo = QLabel("<h2>Configuración</h2>")
+        layout.addWidget(titulo)
+        
+        # Formulario
+        form_layout = QFormLayout()
+        
+        # Puerto del servidor
+        puerto_input = QLineEdit("5255")
+        puerto_input.setEnabled(False)  # Solo lectura por ahora
+        form_layout.addRow("Puerto TCP:", puerto_input)
+        
+        # Intervalo de verificación
+        intervalo_input = QLineEdit("20")
+        form_layout.addRow("Intervalo verificación (s):", intervalo_input)
+        
+        layout.addLayout(form_layout)
+        
+        # Nota
+        nota = QLabel("<i>Nota: Los cambios requieren reiniciar el servidor</i>")
+        layout.addWidget(nota)
+        
+        # Botones
+        btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.clicked.connect(dialog.close)
+        layout.addWidget(btn_cerrar)
+        
+        dialog.exec()
+
+    def hacer_backup(self):
+        """Realiza un backup de la base de datos."""
+        try:
+            from PySide6.QtWidgets import QMessageBox, QFileDialog
+            import shutil
+            from pathlib import Path
+            
+            # Obtener ruta de la base de datos actual
+            if hasattr(sys, "_MEIPASS"):
+                db_actual = Path("specs.db")
+            else:
+                db_actual = Path(__file__).parent.parent.parent / "data" / "specs.db"
+            
+            if not db_actual.exists():
+                QMessageBox.warning(
+                    self,
+                    "Error de Backup",
+                    "No se encontró la base de datos para hacer backup."
+                )
+                return
+            
+            # Preguntar dónde guardar el backup
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            nombre_sugerido = f"specs_backup_{timestamp}.db"
+            
+            ruta_backup, _ = QFileDialog.getSaveFileName(
+                self,
+                "Guardar Backup de Base de Datos",
+                nombre_sugerido,
+                "Base de Datos SQLite (*.db);;Todos los archivos (*.*)"
+            )
+            
+            if not ruta_backup:
+                return  # Usuario canceló
+            
+            # Cerrar conexión temporalmente para hacer backup seguro
+            connection.commit()
+            
+            # Copiar archivo
+            shutil.copy2(db_actual, ruta_backup)
+            
+            self.ui.statusbar.showMessage(f"Backup guardado: {ruta_backup}", 5000)
+            
+            QMessageBox.information(
+                self,
+                "Backup Exitoso",
+                f"La base de datos se ha respaldado correctamente en:\n\n{ruta_backup}"
+            )
+            
+        except Exception as e:
+            print(f"[ERROR] Error al hacer backup: {e}")
+            from traceback import print_exc
+            print_exc()
+            
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Error de Backup",
+                f"No se pudo realizar el backup:\n\n{str(e)}"
+            )
+
+    def acerca_de(self):
+        """Muestra información sobre la aplicación."""
+        from PySide6.QtWidgets import QMessageBox
+        
+        QMessageBox.about(
+            self,
+            "Acerca de SpecsNet",
+            "<h2>SpecsNet - Sistema de Inventario</h2>"
+            "<p><b>Versión:</b> 1.0.0</p>"
+            "<p><b>Descripción:</b> Sistema de inventario de hardware en red</p>"
+            "<p>Arquitectura cliente-servidor TCP con base de datos SQLite</p>"
+            "<br>"
+            "<p><b>Características:</b></p>"
+            "<ul>"
+            "<li>Recopilación automática de especificaciones</li>"
+            "<li>Monitoreo de estado en tiempo real</li>"
+            "<li>Detección de cambios de hardware</li>"
+            "<li>Exportación a Excel (CSV/XLSX)</li>"
+            "</ul>"
+            "<br>"
+            "<p><i>© 2025 - Área de Informática</i></p>"
+        )
+
+    def abrir_manual(self):
+        """Abre el manual de usuario."""
+        from PySide6.QtWidgets import QMessageBox
+        from pathlib import Path
+        import subprocess
+        
+        # Buscar archivo de documentación
+        docs_dir = Path(__file__).parent.parent.parent / "docs"
+        readme = docs_dir / "README.md"
+        exportacion = docs_dir / "EXPORTACION.md"
+        
+        if exportacion.exists():
+            # Abrir con el editor predeterminado
+            try:
+                subprocess.run(["notepad", str(exportacion)])
+            except:
+                QMessageBox.information(
+                    self,
+                    "Manual",
+                    f"Manual de exportación disponible en:\n\n{exportacion}"
+                )
+        else:
+            QMessageBox.information(
+                self,
+                "Manual",
+                "<h3>Guía Rápida de SpecsNet</h3>"
+                "<p><b>1. Escaneo de Red:</b> Use 'Iniciar Escaneo' para buscar dispositivos</p>"
+                "<p><b>2. Verificación:</b> El sistema verifica automáticamente cada 20s</p>"
+                "<p><b>3. Detalles:</b> Seleccione un dispositivo para ver información completa</p>"
+                "<p><b>4. Exportación:</b> Use Archivo > Exportar para generar reportes Excel</p>"
+                "<br>"
+                "<p><i>Para más información, consulte la documentación en docs/</i></p>"
+                "<p><i>O revise el repositorio en GitHub:</i></p>"
+                "<p><a href=\"https://github.com/Th3GaM3RCaT/SpecsNet\">https://github.com/Th3GaM3RCaT/SpecsNet</a></p>"
+            )
+
+    def detener_servidor(self):
+        """Detiene el servidor TCP."""
+        from PySide6.QtWidgets import QMessageBox
+        
+        respuesta = QMessageBox.question(
+            self,
+            "Detener Servidor",
+            "¿Desea detener el servidor TCP?\n\n"
+            "No se recibirán datos de clientes hasta reiniciar.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if respuesta == QMessageBox.StandardButton.Yes:
+            if self.server_mgr:
+                try:
+                    self.server_mgr.stop_tcp_server()
+                    self.ui.statusbar.showMessage("Servidor TCP detenido", 5000)
+                    print("[INFO] Servidor TCP detenido por usuario")
+                except:
+                    pass
+            
+            QMessageBox.information(
+                self,
+                "Servidor Detenido",
+                "El servidor TCP ha sido detenido.\n\n"
+                "Para reiniciarlo, cierre y vuelva a abrir la aplicación."
+            )
 
 def main():
     app = QtWidgets.QApplication.instance()
